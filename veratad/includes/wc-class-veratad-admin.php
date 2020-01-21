@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! class_exists( 'WC_Veratad_Admin' ) ) :
-
+	  require_once( 'wc-class-veratad-api.php' );
 	/**
 	 * Settings class
 	 *
@@ -15,10 +15,10 @@ if ( ! class_exists( 'WC_Veratad_Admin' ) ) :
 	 */
 	class WC_Veratad_Admin  {
 
+		private $api;
 
-
-		public function __construct() {
-
+		public function __construct( WC_Veratad_Api $api ) {
+			$this->api = $api;
 			$this->id    = 'veratad';
 			$this->label = __( 'Veratad', 'my-textdomain' );
 
@@ -105,6 +105,9 @@ function av_add_meta_boxes()
 			 }else{
 				 $document_style = "display:inline-block;";
 				 $no_document_text_style = "display:none;";
+			 }
+			 if(!$meta_field_data){
+				 $meta_field_data = "NONE";
 			 }
 			 echo '<input type="hidden" name="av_other_meta_field_nonce" value="' . wp_create_nonce() . '">
 			 <input type="hidden" name="customer_id" value="' . $customer_id . '">
@@ -320,6 +323,8 @@ function av_add_meta_boxes()
 
 
 
+
+
 		/**
 		 * Get settings array
 		 *
@@ -363,6 +368,56 @@ function av_add_meta_boxes()
 					),
 
 					array(
+						'type'     => 'select',
+						'id'       => 'checkout_fields_placement',
+						'name'     => __( 'Placement', 'my-textdomain' ),
+						'desc_tip' => __( 'Choose where the additional fields should appear on the checkout form.', 'my-textdomain' ),
+						'default' => 'woocommerce_before_checkout_form',
+						'options'  => array(
+                  'woocommerce_before_checkout_form' => __('Before Checkout Form'),
+									'woocommerce_checkout_before_customer_details' => __('Before Checkout Customer Details'),
+									'woocommerce_before_checkout_billing_form' => __('Before Checkout Billing Form'),
+									'woocommerce_after_checkout_billing_form' => __('After Checkout Billing Form'),
+									'woocommerce_before_order_notes' => __('Before Order Notes'),
+									'woocommerce_after_order_notes' => __('After Order Notes'),
+									'woocommerce_review_order_before_submit' => __('Review Order Before Submit'),
+									'modal' => __('Modal Dialog'),
+							)
+    				),
+
+						array(
+							'type'     => 'text',
+							'id'       => 'modal_click_text',
+							'name'     => __( 'Modal - Click Text', 'my-textdomain' ),
+							'default' => 'Edit Age Verification Fields'
+						),
+
+						array(
+							'type'     => 'text',
+							'id'       => 'checkout_background_color',
+							'name'     => __( 'Checkout Form Background Color', 'my-textdomain' ),
+							'default' => '#F8F8F8'
+						),
+
+						array(
+							'type'     => 'textarea',
+							'id'       => 'dob_ssn_title_text',
+							'name'     => __( 'Checkout Form Title', 'my-textdomain' ),
+							'desc_tip' => __( 'This is the title that will be displayed to the user before the SSN and DOB fields', 'my-textdomain' ),
+							'default' => 'Age Verification'
+						),
+
+						array(
+							'type'     => 'textarea',
+							'id'       => 'dob_ssn_alert_text',
+							'name'     => __( 'Checkout Form Intro', 'my-textdomain' ),
+							'desc_tip' => __( 'This is the text that will be displayed to the user before the SSN and DOB fields', 'my-textdomain' ),
+							'default' => 'Our site uses a third party for age verification. Please enter your DOB and SSN accurately.'
+						),
+
+
+
+					array(
 						'type' => 'sectionend',
 						'id'   => 'veratad_group1_options'
 					),
@@ -379,6 +434,7 @@ function av_add_meta_boxes()
 						'id'       => 'veratad_rules',
 						'name'     => __( 'Ruleset', 'my-textdomain' ),
 						'desc_tip' => __( 'Choose a rule set to require elements from the order to match data found in the sources.', 'my-textdomain' ),
+						'default' => 'AgeMatch5_0_RuleSet_YOB',
 						'options'  => array(
                   'AgeMatch5_0_RuleSet_YOB' => __('Name and Year of Birth Match'),
 									'AgeMatch5_0_RuleSet_SSN' => __('Name and SSN Match'),
@@ -425,150 +481,6 @@ function av_add_meta_boxes()
 					),
 
 					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_rule_entry_section'
-					),
-
-				) );
-
-			} elseif ('general' == $current_section ||  !$current_section) {
-
-				/**
-				 * Filter Plugin Section 1 Settings
-				 *
-				 * @since 1.0.0
-				 * @param array $settings Array of the plugin settings
-				 */
-				$settings = apply_filters( 'veratad_general_settings', array(
-
-					array(
-						'name' => __( 'Credentials', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => '',
-						'id'   => 'veratad_credentials'
-					),
-					array(
-						'type'     => 'text',
-						'id'       => 'veratad_user',
-						'name'     => __( 'Username', 'my-textdomain' )
-					),
-					array(
-						'type'     => 'password',
-						'id'       => 'veratad_pass',
-						'name'     => __( 'Password', 'my-textdomain' )
-					),
-					array(
-						'type'     => 'text',
-						'id'       => 'veratad_dcams_site_name',
-						'name'     => __( 'DCAMS Site Name', 'my-textdomain' ),
-						'desc_tip'     => __( 'If a valid site name is entered then document verification will be triggered upon AgeMatch failure.', 'my-textdomain' )
-					),
-					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_credentials_end'
-					),
-					array(
-						'name' => __( 'Settings', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => '',
-						'id'   => 'veratad_settings'
-					),
-					array(
-						'type'     => 'checkbox',
-						'id'       => 'veratad_order_acceptance',
-						'name'     => __( 'Order Acceptance', 'my-textdomain' ),
-						'desc'     => __( 'Allow order to be placed on failed age verification.', 'my-textdomain' ),
-						'desc_tip' => __( 'If checked then an order will be allowed to go through, but will be marked as with the verification status', 'my-textdomain' )
-					),
-					array(
-						'type'     => 'checkbox',
-						'id'       => 'veratad_shipping_verification',
-						'name'     => __( 'Shipping Discrepancies', 'my-textdomain' ),
-						'desc'     => __( 'Block orders when there is a different shipping name.', 'my-textdomain' ),
-						'desc_tip' => __( 'If checked customers will not be able to checkout if there is a different name on the shipping address compared to the billing address.', 'my-textdomain' )
-					),
-					array(
-						'type'     => 'checkbox',
-						'id'       => 'veratad_customer_verification',
-						'name'     => __( 'Customer Discrepancies', 'my-textdomain' ),
-						'desc'     => __( 'Block orders when there is a different name on the account.', 'my-textdomain' ),
-						'desc_tip' => __( 'If checked customers will not be able to checkout if there is a different name on the shipping address or billing address compared to the verified account name.', 'my-textdomain' )
-					),
-					array(
-						'type'     => 'checkbox',
-						'id'       => 'veratad_store_dob',
-						'name'     => __( 'Date of Birth Storage', 'my-textdomain' ),
-						'desc'     => __( 'Store the customer Date of Birth used for verification.', 'my-textdomain' ),
-						'desc_tip' => __( 'If checked the customer Date of Birth will be stored with their order and/or customer account.', 'my-textdomain' )
-					),
-					array(
-						'type'     => 'text',
-						'id'       => 'veratad_default_age_to_check',
-						'name'     => __( 'Age To Check', 'my-textdomain' ),
-						'default'  => '21+',
-						'desc_tip' => __( 'Make sure that you enter the "+" sign after the age value.', 'my-textdomain' ),
-					),
-					array(
-						'type'     => 'checkbox',
-						'id'       => 'veratad_test_mode',
-						'name'     => __( 'Test Mode', 'my-textdomain' ),
-						'desc'     => __( 'Turn test mode on.', 'my-textdomain' ),
-						'desc_tip' => __( 'If checked test mode will be active and AgeMatch queries will go to the test system. Please select which test case you want to use below.', 'my-textdomain' )
-					),
-
-					array(
-						'type'     => 'select',
-						'id'       => 'test_key',
-						'name'     => __( 'Test Key', 'my-textdomain' ),
-						'options'  => array(
-                  'general_identity' => __('General'),
-                  'deceased2' => __('Deceased'),
-									'pos_minor' => __('Possible Minor'),
-									'age_not_verified' => __('Age Not Verified'),
-    				),
-						'desc_tip' => __( 'Select a test_key to use. Check out https://api.veratad.com for all targets associated with these keys.', 'my-textdomain' ),
-					),
-
-					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_credentials_end'
-					),
-
-				) );
-
-			} elseif('content_editor' == $current_section){
-
-				$settings = apply_filters( 'veratad_content_editor', array(
-
-					array(
-						'name' => __( 'Messaging', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => 'Edit the values below to change the text a user sees on your site. ',
-						'id'   => 'veratad_messaging',
-					),
-					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_group2_options'
-					),
-
-					array(
-						'name' => __( 'Checkout', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => '',
-						'id'   => 'veratad_messaging_checkout',
-					),
-
-					array(
-						'type'     => 'textarea',
-						'id'       => 'dob_ssn_alert_text',
-						'name'     => __( 'DOB and SSN Alert Text', 'my-textdomain' ),
-						'desc_tip' => __( 'This is the text that will be displayed to the user before the SSN and DOB fields', 'my-textdomain' ),
-						'default' => 'Our site uses a third party for age verification. Please enter your DOB and SSN accurately.'
-					),
-
-
-
-					array(
 						'type'     => 'textarea',
 						'id'       => 'av_failure_text',
 						'name'     => __( 'Failure - Block Orders', 'my-textdomain' ),
@@ -577,15 +489,11 @@ function av_add_meta_boxes()
 					),
 
 					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_group2_options'
-					),
-
-					array(
-						'name' => __( 'Second Attempt', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => '',
-						'id'   => 'veratad_messaging_second',
+						'type'     => 'textarea',
+						'id'       => 'av_attempts_text',
+						'name'     => __( 'Failure - Attempts Exceeded', 'my-textdomain' ),
+						'desc_tip' => __( 'This is the text that will be displayed to the user if they have no more AgeMatch attempts when block orders is active.', 'my-textdomain' ),
+						'default' => 'You have failed age verification and have no more attempts left.'
 					),
 
 					array(
@@ -631,14 +539,119 @@ function av_add_meta_boxes()
 					),
 
 
+					array(
+						'type' => 'sectionend',
+						'id'   => 'veratad_rule_entry_section'
+					),
+
+				) );
+
+			} elseif ('general' == $current_section ||  !$current_section) {
+
+				$settings = apply_filters( 'veratad_general_settings', array(
+
+					array(
+						'name' => __( 'Credentials', 'my-textdomain' ),
+						'type' => 'title',
+						'desc' => '',
+						'id'   => 'veratad_credentials'
+					),
+					array(
+						'type'     => 'text',
+						'id'       => 'veratad_user',
+						'name'     => __( 'Username', 'my-textdomain' ),
+						'required' => true,
+					),
+					array(
+						'type'     => 'password',
+						'id'       => 'veratad_pass',
+						'name'     => __( 'Password', 'my-textdomain' )
+					),
+					array(
+						'type'     => 'text',
+						'id'       => 'veratad_dcams_site_name',
+						'name'     => __( 'DCAMS Site Name', 'my-textdomain' ),
+						'desc_tip'     => __( 'If a valid site name is entered then document verification will be triggered upon AgeMatch failure.', 'my-textdomain' )
+					),
+					array(
+						'type' => 'sectionend',
+						'id'   => 'veratad_credentials_end'
+					),
+					array(
+						'name' => __( 'Settings', 'my-textdomain' ),
+						'type' => 'title',
+						'desc' => '',
+						'id'   => 'veratad_settings'
+					),
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_order_acceptance',
+						'name'     => __( 'Order Acceptance', 'my-textdomain' ),
+						'desc'     => __( 'Allow order to be placed on failed age verification.', 'my-textdomain' ),
+						'desc_tip' => __( 'If checked then an order will be allowed to go through, but will be marked as with the verification status', 'my-textdomain' ),
+						'default' => 'yes'
+					),
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_shipping_verification',
+						'name'     => __( 'Shipping Discrepancies', 'my-textdomain' ),
+						'desc'     => __( 'Block orders when there is a different shipping name.', 'my-textdomain' ),
+						'desc_tip' => __( 'If checked customers will not be able to checkout if there is a different name on the shipping address compared to the billing address.', 'my-textdomain' ),
+						'default' => 'yes'
+					),
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_customer_verification',
+						'name'     => __( 'Customer Discrepancies', 'my-textdomain' ),
+						'desc'     => __( 'Block orders when there is a different name on the account.', 'my-textdomain' ),
+						'desc_tip' => __( 'If checked customers will not be able to checkout if there is a different name on the shipping address or billing address compared to the verified account name.', 'my-textdomain' ),
+						'default' => 'yes'
+					),
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_store_dob',
+						'name'     => __( 'Date of Birth Storage', 'my-textdomain' ),
+						'desc'     => __( 'Store the customer Date of Birth used for verification.', 'my-textdomain' ),
+						'desc_tip' => __( 'If checked the customer Date of Birth will be stored with their order and/or customer account.', 'my-textdomain' ),
+						'default' => 'yes'
+					),
+					array(
+						'type'     => 'text',
+						'id'       => 'veratad_default_age_to_check',
+						'name'     => __( 'Age To Check', 'my-textdomain' ),
+						'default'  => '21+',
+						'desc_tip' => __( 'Make sure that you enter the "+" sign after the age value.', 'my-textdomain' ),
+					),
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_test_mode',
+						'name'     => __( 'Test Mode', 'my-textdomain' ),
+						'desc'     => __( 'Turn test mode on.', 'my-textdomain' ),
+						'desc_tip' => __( 'If checked test mode will be active and AgeMatch queries will go to the test system. Please select which test case you want to use below.', 'my-textdomain' )
+					),
+
+					array(
+						'type'     => 'select',
+						'id'       => 'test_key',
+						'name'     => __( 'Test Key', 'my-textdomain' ),
+						'default' => 'general_identity',
+						'options'  => array(
+                  'general_identity' => __('General'),
+                  'deceased2' => __('Deceased'),
+									'pos_minor' => __('Possible Minor'),
+									'age_not_verified' => __('Age Not Verified'),
+    				),
+						'desc_tip' => __( 'Select a test_key to use. Check out https://api.veratad.com for all targets associated with these keys.', 'my-textdomain' ),
+					),
 
 					array(
 						'type' => 'sectionend',
-						'id'   => 'veratad_group2_options'
-					)
+						'id'   => 'veratad_credentials_end'
+					),
 
 				) );
-			}elseif('dcams' == $current_section){
+
+			} elseif('dcams' == $current_section){
 
 				$settings = apply_filters( 'veratad_dcams', array(
 
@@ -652,6 +665,7 @@ function av_add_meta_boxes()
 						'type'     => 'select',
 						'id'       => 'dcams_rule_set',
 						'name'     => __( 'Rule Set', 'my-textdomain' ),
+						'default' => 'DCAMS5_0_RuleSet_NAME_DOB',
 						'options'  => array(
                   'DCAMS5_0_RuleSet_NAME_DOB' => __('Name and DOB Match'),
                   'DCAMS5_0_RuleSet_NAME' => __('Name Match'),
@@ -668,6 +682,7 @@ function av_add_meta_boxes()
 						'type'     => 'select',
 						'id'       => 'dcams_default_region',
 						'name'     => __( 'Default Region', 'my-textdomain' ),
+						'default' => 'United States',
 						'options'  => array(
                   'United States' => __('United States'),
                   'Canada' => __('Canada'),
@@ -732,6 +747,110 @@ function av_add_meta_boxes()
 					),
 
 					array(
+						'name' => __( 'Why do I not see any identity documents in the order view after upload?', 'my-textdomain' ),
+						'type' => 'title',
+						'desc' => 'Veratad must set up your stores callback to the storage and document scan system. Please make sure they have done this and provide them with your callback URL like: http://STORE_URL/?wc-api=dcams',
+						'id'   => 'veratad_faq_4',
+					),
+
+					array(
+						'type' => 'sectionend',
+						'id'   => 'veratad_faq_end'
+					)
+
+				) );
+			}elseif('popup' == $current_section){
+
+				$orderby = 'name';
+				$order = 'asc';
+				$hide_empty = false;
+				$cat_args = array(
+						'orderby'    => $orderby,
+						'order'      => $order,
+						'hide_empty' => $hide_empty,
+				);
+
+				$product_categories = get_terms( 'product_cat', $cat_args );
+				if( !empty($product_categories) ){
+					$cat = array();
+						foreach ($product_categories as $key => $category) {
+							$name = $category->name;
+							$id = $category->term_id;
+							$cat[$id] =  __($name);
+						}
+				}
+
+				$cat['no_filter'] = 'Do Not Hide Any';
+
+				$settings = apply_filters( 'veratad_popup', array(
+
+					array(
+						'name' => __( 'Popup', 'my-textdomain' ),
+						'type' => 'title',
+						'desc' => '',
+						'id'   => 'veratad_popup',
+					),
+
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_popup_activation',
+						'name'     => __( 'Popup Activation', 'my-textdomain' ),
+						'desc'     => __( 'Enable popup.', 'my-textdomain' ),
+						'desc_tip' => __( 'If checked a user will have to agree to the age statement prior to entering the site.', 'my-textdomain' ),
+						'default' => 'yes'
+					),
+
+					array(
+						'type'     => 'multiselect',
+						'id'       => 'veratad_categories',
+						'name'     => __( 'Categories Hide Under Age', 'my-textdomain' ),
+						'css'     => 'min-height:150px;',
+						'default' => 'no_filter',
+						'options' => $cat,
+						'desc_tip'     => __( 'Select the categories you want to hide from underage', 'my-textdomain' )
+					),
+
+					array(
+						'type'     => 'text',
+						'id'       => 'veratad_underage_url',
+						'name'     => __( 'Underage URL Forward', 'my-textdomain' ),
+						'default' => "https://google.com",
+						'desc'     => __( 'If no categories selected or none chosen and popup active. This is where the user will be sent on "No" click.', 'my-textdomain' )
+					),
+
+					array(
+						'type'     => 'textarea',
+						'id'       => 'popup_header_text',
+						'name'     => __( 'Title', 'my-textdomain' ),
+						'desc_tip' => __( 'The text for the popup title.', 'my-textdomain' ),
+						'default' => 'Are you 21 or older?'
+					),
+
+					array(
+						'type'     => 'textarea',
+						'id'       => 'popup_resetting_text',
+						'name'     => __( 'Resetting Products Text', 'my-textdomain' ),
+						'desc_tip' => __( 'The text displayed while the user waits for the site to relead with products they can view.', 'my-textdomain' ),
+						'default' => 'Resetting products you can view...'
+					),
+
+					array(
+						'type'     => 'textarea',
+						'id'       => 'popup_underage_button',
+						'name'     => __( 'Under Age Button Text', 'my-textdomain' ),
+						'desc_tip' => __( 'The button text for under age', 'my-textdomain' ),
+						'default' => 'No'
+					),
+
+					array(
+						'type'     => 'textarea',
+						'id'       => 'popup_overage_button',
+						'name'     => __( 'Over Age Button Text', 'my-textdomain' ),
+						'desc_tip' => __( 'The button text for over age', 'my-textdomain' ),
+						'default' => 'Yes'
+					),
+
+					array(
 						'type' => 'sectionend',
 						'id'   => 'veratad_faq_end'
 					)
@@ -745,6 +864,7 @@ function av_add_meta_boxes()
 			 * @since 1.0.0
 			 * @param array $settings Array of the plugin settings
 			 */
+
 			return apply_filters( 'woocommerce_get_settings_' . $this->id, $settings, $current_section );
 
 		}
@@ -755,7 +875,7 @@ function av_add_meta_boxes()
 				'general' => 'General',
 				'agematch' => 'AgeMatch',
 				'dcams' => 'DCAMS',
-				'content_editor' => 'Content Editor',
+				'popup' => 'Popup',
 				'faq' => 'FAQ',
 			);
 
@@ -797,20 +917,28 @@ function av_add_meta_boxes()
 		}
 
 
-		/**
-	 	 * Save settings
-	 	 *
-	 	 * @since 1.0
-		 */
 		public function save() {
 
 			global $current_section;
+			if ($current_section == '' || $current_section == 'general'){
 
+			$user = $_POST['veratad_user'];
+			$pass = $_POST['veratad_pass'];
+			$age = $_POST['veratad_default_age_to_check'];
+
+			$valid = $this->api->check_api_options($user, $pass, $age);
+
+			if($valid == "success"){
+				$settings = $this->get_settings( $current_section );
+				WC_Admin_Settings::save_fields( $settings );
+			}else{
+				WC_Admin_Settings::add_error( $valid );
+			}
+		}else{
 			$settings = $this->get_settings( $current_section );
 			WC_Admin_Settings::save_fields( $settings );
 		}
-
-
+		}
 
 	}
 
