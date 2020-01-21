@@ -18,12 +18,28 @@
 
       function veratad_add_additional_fields_intro( $checkout ){
         $notice = $this->options->get_veratad_ssn_dob_text();
-        echo '<p>' . __(''.$notice.'') . '</p>';
+        $intro = $this->options->get_dob_ssn_title_text();
+        $background_color = $this->options->get_checkout_background_color();
+        echo '<h1 style="background-color:'.$background_color.'; padding:20px; margin:0;">' . __(''.$intro.'') . '</h1>';
+        echo '<p style="background-color:'.$background_color.'; padding:20px; margin:0;">' . __(''.$notice.'') . '</p>';
       }
 
       function veratad_add_dob_billing( $checkout ){
-        echo '<div id="veratad_dob">';
-      woocommerce_form_field('veratad_billing_dob', array(
+
+        $placement = $this->options->get_checkout_fields_placement();
+        if($placement == 'woocommerce_checkout_before_customer_details' || $placement == 'woocommerce_review_order_before_submit'){
+          $checkout = WC()->checkout;
+        }
+        if(!$this->options->get_veratad_ssn_collect()){
+          $margin = "margin-bottom:20px;";
+        }else{
+          $margin = "";
+        }
+
+        $background_color = $this->options->get_checkout_background_color();
+
+        echo '<div id="veratad_dob" style="background-color:'.$background_color.'; padding:20px; '.$margin.'">';
+      woocommerce_form_field('veratad_billing_dob_set', array(
         'type' => 'date',
         'class' => array(
           'my-field-class form-row-wide'
@@ -31,13 +47,23 @@
         'label' => __('Date of Birth') ,
         'placeholder' => __('MM/DD/YYYY') ,
         'required' => true,
-      ) , $checkout->get_value('veratad_billing_dob'));
+      ) , $checkout->get_value('veratad_billing_dob_set'));
       echo '</div>';
+
     }
 
     function veratad_add_ssn_billing( $checkout ){
-echo '<div id="veratad_ssn">';
-    woocommerce_form_field('veratad_billing_ssn', array(
+
+      $placement = $this->options->get_checkout_fields_placement();
+      if($placement == 'woocommerce_checkout_before_customer_details' || $placement == 'woocommerce_review_order_before_submit'){
+        $checkout = WC()->checkout;
+      }
+
+      $background_color = $this->options->get_checkout_background_color();
+
+      $ssn_field_name = 'veratad_billing_ssn_set';
+      echo '<div id="veratad_ssn" style="background-color:'.$background_color.'; padding:20px; margin-top:0px; margin-bottom:20px;">';
+    woocommerce_form_field($ssn_field_name, array(
       'type' => 'text',
       'class' => array(
         'my-field-class form-row-wide'
@@ -45,9 +71,148 @@ echo '<div id="veratad_ssn">';
       'label' => __('Last 4 SSN') ,
       'maxlength' => 4,
       'required' => true,
-    ) , $checkout->get_value('veratad_billing_ssn'));
+    ) , $checkout->get_value($ssn_field_name));
     echo '</div>';
   }
+
+    function add_dob_checkout_hidden_field( $checkout ) {
+      echo '<div id="veratad_dob_hidden_checkout_field">
+              <input type="hidden" class="input-hidden" name="veratad_billing_dob" id="veratad_billing_dob" value="">
+      </div>';
+    }
+
+    function add_dob_script( $checkout ){
+      ?>
+      <script>
+      jQuery( document ).ready(function() {
+        jQuery(document).on('click', '#place_order', function(e){
+          var dob = jQuery("#veratad_billing_dob_set").val();
+          var dob_send = jQuery("#veratad_billing_dob").val(dob);
+        });
+      });
+      </script>
+      <?php
+    }
+
+
+
+    function add_ssn_checkout_hidden_field( $checkout ) {
+      echo '<div id="veratad_ssn_hidden_checkout_field">
+              <input type="hidden" class="input-hidden" name="veratad_billing_ssn" id="veratad_billing_ssn" value="">
+      </div>';
+    }
+
+    function add_ssn_script( $checkout ){
+      ?>
+      <script>
+      jQuery( document ).ready(function() {
+        jQuery(document).on('click', '#place_order', function(e){
+          var ssn = jQuery("#veratad_billing_ssn_set").val();
+
+          var ssn_send = jQuery("#veratad_billing_ssn").val(ssn);
+        });
+      });
+      </script>
+      <?php
+    }
+
+    function add_modal_av_form_html(){
+
+      $title = $this->options->get_dob_ssn_title_text();
+      $intro = $this->options->get_veratad_ssn_dob_text();
+
+      if($this->options->get_veratad_ssn_collect() && $this->options->get_veratad_dob_collect()){
+        $fields = '<form id="modal-form-veratad"><p style="padding-left:20px; padding-right:20px; padding-top:20px;" class="form-row my-field-class form-row-wide validate-required" id="veratad_billing_dob_field" data-priority=""><label for="veratad_dob" class="">Date of Birth&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="date" class="input-text" name="veratad_billing_dob_set" id="veratad_billing_dob_set" placeholder=""  value=""  /></span></p><p style="padding-left:20px; padding-right:20px; padding-top:20px;" class="form-row my-field-class form-row-wide validate-required" id="veratad_billing_dob_field" data-priority=""><label for="veratad_ssn" class="">Last 4 SSN<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="text" class="input-text" name="veratad_billing_ssn_set" id="veratad_billing_ssn_set" placeholder="Last 4 SSN"  value=""  /></span></p><div style="padding-top:20px; padding-left:20px;"><button role="button"  type="button" id="close_modal_button">Done</button></div></form>';
+      }elseif(!$this->options->get_veratad_ssn_collect() && $this->options->get_veratad_dob_collect()){
+        $fields = '<form id="modal-form-veratad"><p style="padding-left:20px; padding-right:20px; padding-top:20px;" class="form-row my-field-class form-row-wide validate-required" id="veratad_billing_dob_field" data-priority=""><label for="veratad_dob" class="">Date of Birth&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="date" class="input-text" name="veratad_billing_dob_set" id="veratad_billing_dob_set" placeholder="MM/DD/YYYY"  value=""  /></span></p><div style="padding-top:20px; padding-left:20px;"><button  type="button" role="button"  id="close_modal_button">Done</button></div></form>';
+      }elseif($this->options->get_veratad_ssn_collect() && !$this->options->get_veratad_dob_collect()){
+        $fields = '<form id="modal-form-veratad"><p style="padding-left:20px; padding-right:20px; padding-top:20px;" class="form-row my-field-class form-row-wide validate-required" id="veratad_billing_dob_field" data-priority=""><label for="veratad_ssn" class="">Last 4 SSN<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="text" class="input-text" name="veratad_billing_ssn_set" id="veratad_billing_ssn_set" placeholder="Last 4 SSN"  value=""  /></span></p><div style="padding-top:20px; padding-left:20px;"><button role="button"  type="button" id="close_modal_button">Done</button></div></form>';
+      }
+
+
+  echo '<div id="veratad_modal_av_form" class="modal" style="padding-top:20px; padding-bottom:20px;">
+        <form id="modal-form-veratad">
+        <div style="padding-left:20px; padding-right:20px;">
+        <h1>'.$title.'</h1>
+        </div>
+        <div style="padding-left:20px; padding-right:20px; padding-top:20px;">'.$intro.'</div>
+        '.$fields.'
+      </div>';
+    }
+
+    function add_veratad_checkout_modal_script( $checkout ){
+      //echo '<link rel="stylesheet" href="https://verataddev.com/wordpress/style.css">';
+      echo '<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" />';
+      echo '<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/jquery.validate.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/additional-methods.min.js"></script>';
+      ?>
+      <script>
+
+      jQuery( document ).ready(function() {
+
+
+        jQuery("#veratad_modal_av_form").modal({
+          escapeClose: false,
+          clickClose: false,
+          showClose: false
+        });
+
+        jQuery('a[data-modal]').click(function(event) {
+          jQuery(this).modal({
+            escapeClose: false,
+            clickClose: false,
+            showClose: false
+          });
+          return false;
+        });
+
+           <?php
+           if($this->options->get_veratad_ssn_collect()){
+             $value = "true";
+             //echo $value;
+           }else{
+             $value = "false";
+           }
+
+           if($this->options->get_veratad_dob_collect()){
+             $value_dob = "true";
+             //echo $value;
+           }else{
+             $value_dob = "false";
+           }
+
+            ?>
+
+jQuery('#modal-form-veratad').validate({
+    rules: {
+      veratad_billing_ssn_set: {
+          required: <?php echo $value;?>,
+          minlength:4,
+          maxlength:4
+        },
+        veratad_billing_dob_set: {
+            required: <?php echo $value_dob;?>
+          }
+    }
+});
+
+    jQuery( "#close_modal_button" ).click(function() {
+      var valid_form = true;
+      valid_form = jQuery("#modal-form-veratad").valid();
+
+      if(valid_form){
+        jQuery.modal.close();
+    }
+      });
+
+    });
+
+</script>
+<?php
+    }
+
+
 
     function validate_ssn(){
       if ( empty( $_POST['veratad_billing_ssn'] ) ){
@@ -64,9 +229,15 @@ echo '<div id="veratad_ssn">';
         wc_add_notice( 'Please enter your Date of Birth.', 'error' );
         return false;
       }else{
-        return true; 
+        return true;
       }
 
+    }
+
+    function add_checkout_modal_edit(){
+
+      $text = $this->options->get_modal_click_text();
+      echo '<p><a href="#veratad_modal_av_form" style="text-decoration:none;" data-modal>'. $text .'</a></p>';
     }
 
 

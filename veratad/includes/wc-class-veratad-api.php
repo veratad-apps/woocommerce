@@ -51,6 +51,53 @@
       return $specs;
     }
 
+    public function check_api_options($user, $pass, $age) {
+
+      $req_array  = array(
+        'user'  => $user,
+        'pass' => $pass,
+        'service' => 'AgeMatch5.0',
+        'reference' => 'credentials check',
+        'rules' => '',
+        'target' => array(
+          'fn' => 'Barbara',
+          'ln' => 'Miller',
+          'addr' => '123 Main St',
+          'city' => 'stratford',
+          'state' => 'CT',
+          'zip' => '06614',
+          'age' => $age,
+          'test_key' => 'general_identity'
+        )
+      );
+
+      $req =  json_encode(new \ArrayObject($req_array));
+
+
+      $post = wp_remote_post("https://production.idresponse.com/process/comprehensive/gateway", array(
+        'method'      => 'POST',
+        'timeout'     => 20,
+        'httpversion' => '1.1',
+        'headers'     => array(
+          'Content-Type' => 'application/json'
+        ),
+        'body'        => $req
+      ));
+
+      $res = json_decode($post['body']);
+
+      if($res->result->action){
+        return "success";
+      }else{
+        $message = $res->error->message;
+        $code = $res->error->code;
+        $detail = $res->error->detail;
+        $return_message = "$code $message $detail";
+        return $return_message;
+      }
+
+    }
+
 
     public function is_verified_veratad($order_id) {
 
@@ -219,6 +266,10 @@
 
     public function handle_api_response_order_acceptance($order_id){
 
+      $hide = $_SESSION['hide_underage'];
+
+      if($hide == "false"){
+
       $customer_id = get_current_user_id();
 
       if(is_user_logged_in()){
@@ -249,9 +300,8 @@
           $this->changed_by_api_user($customer_id, 'PASS', 'AGEMATCH');
         }
       }
-
-
     }
+  }
 
 
 
@@ -302,6 +352,11 @@
 
     public function not_order_acceptance_update_order($order_id){
 
+      $hide = $_SESSION['hide_underage'];
+      $_SESSION['veratad_attempt'] = null;
+
+      if($hide == "false"){
+
       $customer_id = get_current_user_id();
 
       $target = $this->get_target('billing');
@@ -331,8 +386,26 @@
           $this->veratad_order_data_save_pass();
       }
     }
+    }
+
 
     public function handle_api_response_not_order_acceptance(){
+
+      $hide = $_SESSION['hide_underage'];
+
+      if($hide == "false"){
+        if(!$_SESSION['veratad_attempt']){
+          $attempt = 0;
+        }else{
+          $attempt = $_SESSION['veratad_attempt'];
+        }
+        $_SESSION['veratad_attempt'] = $attempt + 1;
+
+        $session_attempt = $_SESSION['veratad_attempt'];
+
+        if($session_attempt >= 3){
+          wc_add_notice($this->options->get_av_attempts_text(), 'error');
+        }else{
 
       $block = $this->block();
       $valid_fields = $this->additional_fields_valid();
@@ -353,6 +426,8 @@
             }
           }
         }
+      }
+      }
     }
 
     public function block_order_if_different_name(){
@@ -410,7 +485,6 @@
     }
 
 
-
     public function dcams_callback() {
       $data = file_get_contents("php://input");
       $array = json_decode($data, true);
@@ -460,6 +534,7 @@
           $eligible = get_post_meta( $order_id, '_agematch_eligible', true);
         }
 
+
         $dcams_site = $this->options->get_dcams_site();
 
         $ssn_on = $this->options->get_veratad_ssn_second_attempt_on();
@@ -475,10 +550,11 @@
         $intro_text = $this->options->get_second_attempt_av_intro();
         $dcams_intro = $this->options->get_second_attempt_dcams_intro();
 
-        $try_again_form = '<div class="woocommerce-error" role="alert" id="initial-error">'.$initial_fail_text.' </div>
-        <div style="display:none;" id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>
-        <div style="display:none;" id="dcams-fail" class="woocommerce-error" role="alert">'. $second_attempt_av_failure .'</div>
-        <div style="display:none;" id="fail" class="woocommerce-error" role="alert">'.$dcams_intro.'</div>
+        $try_again_form = '<div style="display:none;" id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>
+          <div style="display:none;" id="dcams-fail" class="woocommerce-error" role="alert">'. $second_attempt_av_failure .'</div>
+        <div id="veratad_modal_av_second_attempt_form" class="modal" style="padding-top:20px; padding-bottom:20px;">
+        <h1>'.$initial_fail_text.' </h1>
+        <div style="display:none;" id="fail" >'.$dcams_intro.'</div>
         <div id="veratad-try-again"  padding:15px 15px 15px 15px;">
         <div id="veratad-try-again-content" style="padding:15px 15px 15px 15px;">
             <p id="veratad_intro_text">'.$intro_text.'</p>
@@ -498,12 +574,14 @@
             <input type="hidden" id="phone" name="phone" value="'.$billing_phone.'">
             <input type="hidden" id="customer_id" name="customer_id" value="'.$customer_id.'">
             <button type="button" class="button alt" name="veratad_submit_try-again" id="veratad-submit" data-value="Verify">Verify</button>
+            <p id="verify_message" style="display:none;">Verifying...</p>
             </div>
             </form>
           </div>
           <div style="text-align: center; width:100%;">
           <button type="button" style="display:none; " class="button alt" name="upload" id="upload" data-value="Upload Your ID">Upload Your ID</button>
           </div>
+        </div>
         </div>';
 
           if($av_status == "PASS"){
@@ -518,7 +596,7 @@
 
     }
 
-  function tft_handle_ajax_request() {
+  function veratad_ajax_agematch_second_attempt() {
 
     $specs = $this->get_api_specs();
 
@@ -543,6 +621,7 @@
         'phone' => $_POST['phone']
       )
     );
+
 
     if($test_mode){
       $req_array['target']['test_key'] = $specs['test_key'];
@@ -596,11 +675,20 @@
 
     function add_second_attempt_script() { ?>
 <link rel="stylesheet" href="https://verataddev.com/dcams/v2/stable/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/jquery.validate.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/additional-methods.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
+
     <script type="text/javascript">
 
       jQuery( document ).ready(function() {
+
+        jQuery("#veratad_modal_av_second_attempt_form").modal({
+          escapeClose: false,
+          clickClose: false,
+          showClose: false
+        });
 
         <?php
 
@@ -639,7 +727,7 @@
            valid_form = jQuery("#veratad-try-again-form").valid();
            if(valid_form){
            var data = {
-              'action': 'my_ajax_request',
+              'action': 'veratad_ajax_request',
               'post_type': 'POST',
               'name': 'Veratad AgeMatch',
               'fn': jQuery("#billing_first_name").val(),
@@ -654,19 +742,18 @@
               'customer_id': jQuery("#customer_id").val()
             };
 
-           jQuery("#veratad-submit").addClass('loading');
-           jQuery("#veratad-submit").prop('disabled', true);
+           jQuery("#veratad-submit").hide();
+           jQuery("#verify_message").show();
+
            var ajaxurl = "<?php echo admin_url('admin-ajax.php'); ?>";
            jQuery.post(ajaxurl, data, function(response) {
-             jQuery("#veratad-submit").removeClass('loading');
-             jQuery("#veratad-submit").prop('disabled', false);
-             console.log( response );
              jQuery("#veratad-try-again-form").hide();
              jQuery("#veratad_intro_text").hide();
              var action = response.result.action;
              if(action == "PASS"){
                jQuery("#pass").show();
                jQuery("#initial-error").hide();
+               jQuery.modal.close();
              }else{
                jQuery("#initial-error").hide();
                if(dcams_site != ''){
@@ -713,6 +800,7 @@
              },
              onSuccess: function() {
                veratadModal.close();
+               jQuery.modal.close();
                jQuery("#initial-error").hide();
                jQuery("#pass").show();
                jQuery("#fail").hide();
@@ -720,6 +808,7 @@
              },
              onFailure: function() {
                //this is just an example. Handle the customer in your own frontend flow.
+               jQuery.modal.close();
                jQuery("#initial-error").hide();
                jQuery("#dcams-fail").show();
                jQuery("#fail").hide();
@@ -732,6 +821,7 @@
                jQuery("#fail").hide();
                jQuery("#upload").hide();
                veratadModal.close();
+               jQuery.modal.close();
              },
            });
          veratadModal.open();
