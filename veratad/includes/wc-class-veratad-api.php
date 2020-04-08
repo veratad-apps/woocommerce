@@ -33,7 +33,6 @@
           'ssn' => $_POST['veratad_'.$type.'_ssn'],
           'phone' => $_POST[''.$type.'_phone'],
           'email' => $_POST[''.$type.'_email'],
-          'dob_type' => 'YYYY-MM-DD',
           'age' => $this->options->get_veratad_default_age_to_check()
       );
 
@@ -99,6 +98,8 @@
     }
 
 
+
+
     public function is_verified_veratad($order_id) {
 
       $order = wc_get_order( $order_id );
@@ -111,6 +112,17 @@
       $reference = $target['email'];
 
       $dob = $target['dob'];
+
+
+      if (strpos($dob, '-') !== false) {
+        $dob_type = "YYYY-MM-DD";
+      }else{
+        $dob_type = "MMDDYYYY";
+      }
+
+      $target['dob_type'] = $dob_type;
+
+
 
       $test_mode = $specs['test_mode'];
 
@@ -167,6 +179,17 @@
 
       $target = $this->get_target('billing');
       $reference = $target['email'];
+
+      $dob = $target['dob'];
+
+
+      if (strpos($dob, '-') !== false) {
+        $dob_type = "YYYY-MM-DD";
+      }else{
+        $dob_type = "MMDDYYYY";
+      }
+
+      $target['dob_type'] = $dob_type;
 
 
       $test_mode = $specs['test_mode'];
@@ -268,7 +291,7 @@
 
       $hide = $_SESSION['hide_underage'];
 
-      if($hide == "false"){
+      if($hide == "false" || !$hide){
 
       $customer_id = get_current_user_id();
 
@@ -355,7 +378,7 @@
       $hide = $_SESSION['hide_underage'];
       $_SESSION['veratad_attempt'] = null;
 
-      if($hide == "false"){
+      if($hide == "false" || !$hide){
 
       $customer_id = get_current_user_id();
 
@@ -393,7 +416,7 @@
 
       $hide = $_SESSION['hide_underage'];
 
-      if($hide == "false"){
+      if($hide == "false" || !$hide){
         if(!$_SESSION['veratad_attempt']){
           $attempt = 0;
         }else{
@@ -517,7 +540,7 @@
 
 
     public function veratad_add_message_to_thank_you() {
-        add_thickbox();
+
         if( isset( $_GET['key'] ) && is_wc_endpoint_url( 'order-received' ) ) {
           $order_id = wc_get_order_id_by_order_key( $_GET['key'] );
           $order = wc_get_order($order_id);
@@ -602,6 +625,14 @@
 
     $test_mode = $specs['test_mode'];
 
+    $date_of_birth = $_POST['dob'];
+
+    if (strpos($date_of_birth, '-') !== false) {
+      $dob_type = "YYYY-MM-DD";
+    }else{
+      $dob_type = "MMDDYYYY";
+    }
+
     $req_array  = array(
       'user'  => $specs['user'],
       'pass' => $specs['pass'],
@@ -616,7 +647,7 @@
         'dob' => $_POST['dob'],
         'ssn' => $_POST['ssn'],
         'age' => $this->options->get_veratad_default_age_to_check(),
-        'dob_type' => 'YYYY-MM-DD',
+        'dob_type' => $dob_type,
         'email' => $_POST['email'],
         'phone' => $_POST['phone']
       )
@@ -673,12 +704,47 @@
     exit;
   }
 
+  function veratad_email( $order, $sent_to_admin, $plain_text, $email){
+
+    $order_id = $order->get_id();
+    $av_status = get_post_meta( $order_id, '_veratad_verified', true);
+
+    if($av_status == "PASS" || $av_status == "FAIL"){
+      $message = "The age and identity verification status is: $av_status";
+    }else{
+      $message = "There was no verification performed with this order";
+    }
+
+    $fail_message = "";
+    if($av_status == "PASS"){
+      $bg = "#228B22";
+    }elseif($av_status == "FAIL"){
+      $bg = "#8B0000";
+      $fail_message = "Since you allow orders to be accepted the user may be currently going through a second attempt or uploading a document.";
+    }else{
+      $bg = "#9400D3";
+    }
+
+    if ( $sent_to_admin ) {
+      echo '<table width="100%" style="margin-bottom:10px; margin-top:10px;">
+        <tr width="100%" bgcolor="'.$bg.'" style="padding:10px: margin-bottom:0px;">
+          <td width="100%" ><font color="#fff">'.$message.'</font></td>
+        </tr>
+        <tr width="100%" style="padding:10px: margin-top:0px;">
+          <td width="100%" style="padding:10px:">'.$fail_message.'</td>
+        </tr>
+      </table>';
+    }
+
+  }
+
     function add_second_attempt_script() { ?>
 <link rel="stylesheet" href="https://verataddev.com/dcams/v2/stable/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/jquery.validate.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/additional-methods.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
+
 
     <script type="text/javascript">
 
@@ -765,7 +831,7 @@
                }
 
              }
-             console.log(action);
+
            }, 'json');
          }
          });

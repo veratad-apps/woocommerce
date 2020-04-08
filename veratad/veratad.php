@@ -21,7 +21,6 @@
       // make sure session is started as soon as possible
       if ( session_status() != PHP_SESSION_ACTIVE ) {
         session_start();
-
       }
 
       require_once( dirname( __FILE__ ) . '/includes/wc-class-veratad-admin.php' );
@@ -34,15 +33,15 @@
 
         public function run() {
 
-
-
-
           $options = new WC_Veratad_Options();
           $checkout = new WC_Veratad_Checkout_Fields( $options );
           $api = new WC_Veratad_Api( $options, $checkout );
           $products = new WC_Veratad_Products( $options );
           $admin = new WC_Veratad_Admin($api);
 
+          //add to order email
+
+          add_action( 'woocommerce_email_order_details', array($api, 'veratad_email'), 10, 4 );
 
           //add column to order view
           add_filter( 'manage_edit-shop_order_columns', array($admin, 'add_column_to_order'));
@@ -66,21 +65,17 @@
 
           //placement of AV on checkout page
           $placement = $options->get_checkout_fields_placement();
-          $hide = $_SESSION['hide_underage'];
-
-          if($hide == "false"){
 
           if($placement == 'modal'){
-            add_action('woocommerce_before_checkout_form', array($checkout, 'add_modal_av_form_html'), 9 );
+            add_action('woocommerce_after_checkout_form', array($checkout, 'add_modal_av_form_html'));
             add_action('woocommerce_after_checkout_billing_form', array($checkout, 'add_checkout_modal_edit'));
-
           }
 
           //add new checkout fields description text
           if($options->get_veratad_ssn_collect() || $options->get_veratad_dob_collect()){
               add_action($placement, array($checkout, 'veratad_add_additional_fields_intro'), 9 );
               if($placement == "modal"){
-                add_action('woocommerce_after_checkout_form', array($checkout, 'add_veratad_checkout_modal_script') );
+                add_action('wp_head', array($checkout, 'add_veratad_checkout_modal_script') );
               }
           }
 
@@ -102,8 +97,11 @@
             add_action('woocommerce_after_checkout_form', array($checkout, 'add_ssn_script') );
           }
 
-          // add the av message to thank you page when order acceptance is active
-          add_action( 'woocommerce_thankyou_order_received_text', array($api, 'veratad_add_message_to_thank_you') );
+          $hide = $_SESSION['hide_underage'];
+          if($hide != "true"){
+            // add the av message to thank you page when order acceptance is active
+            add_action( 'woocommerce_thankyou_order_received_text', array($api, 'veratad_add_message_to_thank_you') );
+          }
 
           //add the JS script for the second attempt agematch and dcams
           add_action( 'woocommerce_thankyou_order_received_text', array($api, 'add_second_attempt_script') );
@@ -116,11 +114,6 @@
           add_action( 'wp_ajax_nopriv_veratad_ajax_request', array($api,'veratad_ajax_agematch_second_attempt'));
 
 
-        }
-
-
-
-
 
 
           if($options->get_veratad_popup_activation()){
@@ -130,7 +123,7 @@
           add_action('wp_head', 'modal_css');
           add_action('wp_head', array($products, 'add_veratad_popup_ajax'));
 
-          add_action('wp_body_open', array($products,'add_popup_html'));
+          add_action('wp_footer', array($products,'add_popup_html'));
           add_action( 'wp_ajax_my_ajax_request', array($products,'veratad_handle_ajax_request') );
           add_action( 'wp_ajax_nopriv_my_ajax_request', array($products,'veratad_handle_ajax_request'));
 
@@ -178,12 +171,12 @@
           }else{
 
             //validate DOB field on checkout when order acceptance is active
-            if($options->get_veratad_dob_collect() && $hide == "false"){
+            if($options->get_veratad_dob_collect()){
                 add_action('woocommerce_checkout_process', array($checkout, 'validate_dob'));
             }
 
             //validate SSN field on checkout when order acceptance is active
-            if($options->get_veratad_ssn_collect() && $hide == "false"){
+            if($options->get_veratad_ssn_collect()){
                 add_action('woocommerce_checkout_process', array($checkout, 'validate_ssn'));
             }
             //add block order for name discrepancies when order acceptnace is set to "no"

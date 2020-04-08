@@ -499,7 +499,7 @@ function av_add_meta_boxes()
 					array(
 						'type'     => 'textarea',
 						'id'       => 'av_failure_text_acceptance',
-						'name'     => __( 'Failure - Order Acceptance', 'my-textdomain' ),
+						'name'     => __( 'Failure Title - Order Acceptance', 'my-textdomain' ),
 						'desc_tip' => __( 'This is the text that will be displayed to the user if they fail the AgeMatch attempt when order acceptance is active.', 'my-textdomain' ),
 						'default' => 'Something went wrong. We were not able to verify your age.'
 					),
@@ -548,6 +548,27 @@ function av_add_meta_boxes()
 
 			} elseif ('general' == $current_section ||  !$current_section) {
 
+				$orderby = 'name';
+				$order = 'asc';
+				$hide_empty = false;
+				$cat_args = array(
+						'orderby'    => $orderby,
+						'order'      => $order,
+						'hide_empty' => $hide_empty,
+				);
+
+				$product_categories = get_terms( 'product_cat', $cat_args );
+				if( !empty($product_categories) ){
+					$cat = array();
+						foreach ($product_categories as $key => $category) {
+							$name = $category->name;
+							$id = $category->term_id;
+							$cat[$id] =  __($name);
+						}
+				}
+
+				$cat['no_filter'] = 'Do Not Hide Any';
+
 				$settings = apply_filters( 'veratad_general_settings', array(
 
 					array(
@@ -583,12 +604,23 @@ function av_add_meta_boxes()
 						'desc' => '',
 						'id'   => 'veratad_settings'
 					),
+
+					array(
+						'type'     => 'multiselect',
+						'id'       => 'veratad_categories',
+						'name'     => __( 'Categories That Require Age Verification', 'my-textdomain' ),
+						'css'     => 'min-height:150px;',
+						'default' => 'no_filter',
+						'options' => $cat,
+						'desc_tip'     => __( 'If a category is selected then age verification will be active for any products in that category. If not, no age verification will be required.', 'my-textdomain' )
+					),
+
 					array(
 						'type'     => 'checkbox',
 						'id'       => 'veratad_order_acceptance',
 						'name'     => __( 'Order Acceptance', 'my-textdomain' ),
 						'desc'     => __( 'Allow order to be placed on failed age verification.', 'my-textdomain' ),
-						'desc_tip' => __( 'If checked then an order will be allowed to go through, but will be marked as with the verification status', 'my-textdomain' ),
+						'desc_tip' => __( 'If checked then an order will be allowed to go through, but will be marked with the verification status. When enabled the user will get a second attempt at data and a document upload opportunity.', 'my-textdomain' ),
 						'default' => 'yes'
 					),
 					array(
@@ -761,26 +793,7 @@ function av_add_meta_boxes()
 				) );
 			}elseif('popup' == $current_section){
 
-				$orderby = 'name';
-				$order = 'asc';
-				$hide_empty = false;
-				$cat_args = array(
-						'orderby'    => $orderby,
-						'order'      => $order,
-						'hide_empty' => $hide_empty,
-				);
 
-				$product_categories = get_terms( 'product_cat', $cat_args );
-				if( !empty($product_categories) ){
-					$cat = array();
-						foreach ($product_categories as $key => $category) {
-							$name = $category->name;
-							$id = $category->term_id;
-							$cat[$id] =  __($name);
-						}
-				}
-
-				$cat['no_filter'] = 'Do Not Hide Any';
 
 				$settings = apply_filters( 'veratad_popup', array(
 
@@ -801,21 +814,11 @@ function av_add_meta_boxes()
 					),
 
 					array(
-						'type'     => 'multiselect',
-						'id'       => 'veratad_categories',
-						'name'     => __( 'Categories Hide Under Age', 'my-textdomain' ),
-						'css'     => 'min-height:150px;',
-						'default' => 'no_filter',
-						'options' => $cat,
-						'desc_tip'     => __( 'Select the categories you want to hide from underage', 'my-textdomain' )
-					),
-
-					array(
 						'type'     => 'text',
 						'id'       => 'veratad_underage_url',
 						'name'     => __( 'Underage URL Forward', 'my-textdomain' ),
 						'default' => "https://google.com",
-						'desc'     => __( 'If no categories selected or none chosen and popup active. This is where the user will be sent on "No" click.', 'my-textdomain' )
+						'desc'     => __( 'This is where the user will be sent on "No" click.', 'my-textdomain' )
 					),
 
 					array(

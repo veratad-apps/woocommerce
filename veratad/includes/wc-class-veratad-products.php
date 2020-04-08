@@ -51,6 +51,7 @@
             }
           $terms = $new_terms;
         }
+
         return $terms;
     }
 
@@ -88,23 +89,18 @@
 
         $list = $this->get_category_array();
 
-        if(in_array( 'no_filter', $list ) || !$list){
-          $under_button = '<a style="text-decoration:none;" href="'.$url.'"><button type="button" class="veratad_popup_age" id="underage" role="button" style="margin-left:10px;">
+          $under_button = '<a style="text-decoration:none;" href="'.$url.'">
+          <button type="button" class="veratad_popup_age" id="underage" role="button" style="margin-left:10px;">
           '.$under.'
           </button></a>';
-        }else{
-          $under_button = '<button type="button" class="veratad_popup_age" id="underage" role="button" style="margin-left:10px;">
-          '.$under.'
-          </button>';
-        }
 
     echo '<div id="veratad_popup" class="modal" style="text-align:center; padding-top:20px; padding-bottom:20px;">
             <div style="padding-top:20px; padding-bottom:20px;">
-              <h2 id="header_pop_up" >'.$header.'</h2>
+              <div id="header_pop_up" >'.$header.'</div>
               <p id="reset_message" style="display:none; padding-top:40px;">'.$reset.'</p>
             </div>
-            <div style="padding-bottom:20px;">
-              <button type="button" class="veratad_popup_age" id="overage" role="button" style="margin-right:10px;">
+            <div style="padding-bottom:20px; width:100%;">
+              <button type="button" role="button" class="veratad_popup_age" id="overage" style="margin-right:10px;">
               '.$over.'
               </button>
               '.$under_button.'
@@ -113,6 +109,8 @@
 
       }
 
+
+
       function add_veratad_popup_ajax() { ?>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" />
@@ -120,31 +118,22 @@
 
         jQuery( document ).ready(function() {
 
-          //var modal =
+          var visited = localStorage['hide_underage'];
 
-          //jQuery("#page").prepend(modal);
-
-
-          <?php
-          $list = $this->get_category_array();
-
-          if((in_array( 'no_filter', $list ) || !$list) && $_SESSION['hide_underage'] == 'true'){
-            $block = "true";
+          if (!visited || visited === "true") {
+            jQuery("#veratad_popup").modal({
+              escapeClose: false,
+              clickClose: false,
+              showClose: false
+            });
           }
-          if(!$_SESSION['hide_underage'] || $block == 'true'){
-          echo 'jQuery("#veratad_popup").modal({
-            escapeClose: false,
-            clickClose: false,
-            showClose: false
-          });';
-        }
-          ?>
-
 
            jQuery( ".veratad_popup_age" ).click(function() {
              jQuery(".veratad_popup_age").prop('disabled', true);
              var id = jQuery(this).attr("id");
+
              jQuery(".veratad_popup_age").remove();
+
              jQuery("#header_pop_up").hide();
              jQuery("#reset_message").show();
 
@@ -158,8 +147,12 @@
 
              var ajaxurl = "<?php echo admin_url('admin-ajax.php'); ?>";
              jQuery.post(ajaxurl, data, function(response) {
-               jQuery("#" + id).removeClass('loading');
-               console.log( response );
+               console.log(response);
+               if(response === "underage"){
+                 localStorage['hide_underage'] = "true";
+               }else{
+                 localStorage['hide_underage'] = "false";
+               }
                location.reload();
              }, 'json');
            });
@@ -169,6 +162,7 @@
 
   <?php
   }
+
 
   function veratad_handle_ajax_request() {
 
