@@ -507,41 +507,9 @@
 
     }
 
-    public function email($to, $subject, $body){
-
-
-      $config = array();
-      $config['api_key'] = "key-22f53625ea0fadbfb6d75ff90ebdd3f8";
-      $config['api_url'] = "https://api.mailgun.net/v3/verataddev.com/messages";
-      $message = array();
-      $message['from'] = "Veratad System Message <no-reply@veratad.com>";
-      $message['to'] = "$to";
-      $message['subject'] = "$subject";
-      $message['html'] = "$body";
-
-      $chmail = curl_init();
-      curl_setopt($chmail, CURLOPT_URL, $config['api_url']);
-      curl_setopt($chmail, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_setopt($chmail, CURLOPT_USERPWD, "api:{$config['api_key']}");
-      curl_setopt($chmail, CURLOPT_RETURNTRANSFER, 1);
-      curl_setopt($chmail, CURLOPT_CONNECTTIMEOUT, 10);
-      curl_setopt($chmail, CURLOPT_SSL_VERIFYPEER, 0);
-      curl_setopt($chmail, CURLOPT_SSL_VERIFYHOST, 0);
-      curl_setopt($chmail, CURLOPT_POST, true);
-      curl_setopt($chmail, CURLOPT_POSTFIELDS,$message);
-
-      $resultmail = curl_exec($chmail);
-      $json_result_mail = json_decode($resultmail);
-
-      return $json_result_mail;
-
-    }
-
-
+   
     public function dcams_callback() {
       $data = file_get_contents("php://input");
-      $this->email("tcanfarotta@veratad.com", "DCAMS Callback WOO", $data);
-
       $array = json_decode($data, true);
       $email = $array['email'];
       $statusid = $array['statusid'];
