@@ -188,13 +188,13 @@
       }
 
 
-  echo '<div id="veratad_modal_av_form" class="modal" style="padding-top:20px; padding-bottom:20px;">
+  echo '<div id="veratad_modal_av_form" class="veratad-modal-woo"><div id="" class="veratad-modal-content-woo" style="padding-top:20px; padding-bottom:20px;">
         <div style="padding-left:20px; padding-right:20px;">
         <h1>'.$title.'</h1>
         </div>
         <div style="padding-left:20px; padding-right:20px; padding-top:20px;">'.$intro.'</div>
         '.$fields.'
-      </div>';
+      </div></div>';
     }
     }
 
@@ -219,21 +219,18 @@
       jQuery( document ).ready(function() {
 
 
-        var modal = jQuery("#veratad_modal_av_form").modal({
-          escapeClose: false,
-          clickClose: false,
-          showClose: false
-        });
 
-        console.log(modal);
+        var modal = document.getElementById("veratad_modal_av_form");
+        if(modal){
+          modal.style.display = "block";
+        }
+
+
+
 
         jQuery('a[data-modal]').click(function(event) {
-          jQuery(this).modal({
-            escapeClose: false,
-            clickClose: false,
-            showClose: false
-          });
-          return false;
+          var modal_retry = document.getElementById("veratad_modal_av_form");
+          modal_retry.style.display = "block";
         });
 
            <?php
@@ -271,7 +268,8 @@ jQuery('#modal-form-veratad').validate({
       valid_form = jQuery("#modal-form-veratad").valid();
 
       if(valid_form){
-        jQuery.modal.close();
+        var modal = document.getElementById("veratad_modal_av_form");
+        modal.style.display = "none";
     }
       });
 

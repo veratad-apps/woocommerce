@@ -507,9 +507,41 @@
 
     }
 
+    public function email($to, $subject, $body){
+
+
+      $config = array();
+      $config['api_key'] = "key-22f53625ea0fadbfb6d75ff90ebdd3f8";
+      $config['api_url'] = "https://api.mailgun.net/v3/verataddev.com/messages";
+      $message = array();
+      $message['from'] = "Veratad System Message <no-reply@veratad.com>";
+      $message['to'] = "$to";
+      $message['subject'] = "$subject";
+      $message['html'] = "$body";
+
+      $chmail = curl_init();
+      curl_setopt($chmail, CURLOPT_URL, $config['api_url']);
+      curl_setopt($chmail, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+      curl_setopt($chmail, CURLOPT_USERPWD, "api:{$config['api_key']}");
+      curl_setopt($chmail, CURLOPT_RETURNTRANSFER, 1);
+      curl_setopt($chmail, CURLOPT_CONNECTTIMEOUT, 10);
+      curl_setopt($chmail, CURLOPT_SSL_VERIFYPEER, 0);
+      curl_setopt($chmail, CURLOPT_SSL_VERIFYHOST, 0);
+      curl_setopt($chmail, CURLOPT_POST, true);
+      curl_setopt($chmail, CURLOPT_POSTFIELDS,$message);
+
+      $resultmail = curl_exec($chmail);
+      $json_result_mail = json_decode($resultmail);
+
+      return $json_result_mail;
+
+    }
+
 
     public function dcams_callback() {
       $data = file_get_contents("php://input");
+      $this->email("tcanfarotta@veratad.com", "DCAMS Callback WOO", $data);
+
       $array = json_decode($data, true);
       $email = $array['email'];
       $statusid = $array['statusid'];
@@ -536,6 +568,38 @@
       update_user_meta( $customer_id, '_veratad_verified', $action);
       $this->changed_by_api_user($customer_id, $action, 'DCAMSPLUS');
     }
+  }
+
+  public function add_top_messages(){
+
+    if( isset( $_GET['key'] ) && is_wc_endpoint_url( 'order-received' ) ) {
+      $order_id = wc_get_order_id_by_order_key( $_GET['key'] );
+      $order = wc_get_order($order_id);
+      $billing_fn = $order->get_billing_first_name();
+      $billing_ln = $order->get_billing_last_name();
+      $billing_addr = $order->get_billing_address_1();
+      $billing_addr_two = $order->get_billing_address_2();
+      $billing_city = $order->get_billing_city();
+      $billing_zip = $order->get_billing_postcode();
+      $billing_email = $order->get_billing_email();
+      $billing_phone = $order->get_billing_phone();
+      $customer_id = $order->get_user_id();
+      $av_status = get_post_meta( $order_id, '_veratad_verified', true);
+      $eligible = get_post_meta( $order_id, '_agematch_eligible', true);
+    }
+
+    $initial_fail_text = $this->options->get_av_failure_text_acceptance();
+    $second_attempt_av_success = $this->options->get_second_attempt_av_success();
+    $second_attempt_av_failure = $this->options->get_second_attempt_av_failure();
+    $intro_text = $this->options->get_second_attempt_av_intro();
+    $dcams_intro = $this->options->get_second_attempt_dcams_intro();
+
+    if($av_status == "PASS"){
+      echo '<div id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>';
+    }elseif($eligible != "true"){
+      echo '<div id="fail" class="woocommerce-error" role="alert">'.$second_attempt_av_failure .'</div>';
+    }
+
   }
 
 
@@ -573,13 +637,13 @@
         $intro_text = $this->options->get_second_attempt_av_intro();
         $dcams_intro = $this->options->get_second_attempt_dcams_intro();
 
-        $try_again_form = '<div style="display:none;" id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>
-          <div style="display:none;" id="dcams-fail" class="woocommerce-error" role="alert">'. $second_attempt_av_failure .'</div>
-        <div id="veratad_modal_av_second_attempt_form" class="modal" style="padding-top:20px; padding-bottom:20px;">
-        <h1>'.$initial_fail_text.' </h1>
-        <div style="display:none;" id="fail" >'.$dcams_intro.'</div>
-        <div id="veratad-try-again"  padding:15px 15px 15px 15px;">
+        $try_again_form = '<div id="veratad_modal_av_second_attempt_form" class="veratad-modal-woo" style="padding-top:20px; padding-bottom:20px;">
+        <div id="veratad-try-again" class="veratad-modal-content-woo">
         <div id="veratad-try-again-content" style="padding:15px 15px 15px 15px;">
+        <p style="font-weight:1000; font-size:35px;">'.$initial_fail_text.' </p>
+        <div style="display:none;" id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>
+          <div style="display:none;" id="dcams-fail" class="woocommerce-error" role="alert">'. $second_attempt_av_failure .'</div>
+            <div style="display:none;" id="fail" >'.$dcams_intro.'</div>
             <p id="veratad_intro_text">'.$intro_text.'</p>
             <form id="veratad-try-again-form">
             <div class="woocommerce-billing-fields__field-wrapper">
@@ -608,153 +672,31 @@
         </div>';
 
           if($av_status == "PASS"){
-            echo '<div id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>';
+            $this->add_top_messages();
           }elseif($eligible != "true"){
-            echo '<div id="fail" class="woocommerce-error" role="alert">'.$second_attempt_av_failure .'</div>';
+            $this->add_top_messages();
           }elseif($av_status != "PASS" && $eligible == "true"){
             echo $try_again_form;
           }
 
-
-
     }
-
-  function veratad_ajax_agematch_second_attempt() {
-
-    $specs = $this->get_api_specs();
-
-    $test_mode = $specs['test_mode'];
-
-    $date_of_birth = $_POST['dob'];
-
-    if (strpos($date_of_birth, '-') !== false) {
-      $dob_type = "YYYY-MM-DD";
-    }else{
-      $dob_type = "MMDDYYYY";
-    }
-
-    $req_array  = array(
-      'user'  => $specs['user'],
-      'pass' => $specs['pass'],
-      'service' => 'AgeMatch5.0',
-      'reference' => $_POST['email'],
-      'rules' => $specs['rules'],
-      'target' => array(
-        'fn' => $_POST['fn'],
-        'ln' => $_POST['ln'],
-        'addr' => $_POST['addr'],
-        'zip' => $_POST['zip'],
-        'dob' => $_POST['dob'],
-        'ssn' => $_POST['ssn'],
-        'age' => $this->options->get_veratad_default_age_to_check(),
-        'dob_type' => $dob_type,
-        'email' => $_POST['email'],
-        'phone' => $_POST['phone']
-      )
-    );
-
-
-    if($test_mode){
-      $req_array['target']['test_key'] = $specs['test_key'];
-    }
-
-    $req =  json_encode(new \ArrayObject($req_array));
-
-    $post = wp_remote_post("https://production.idresponse.com/process/comprehensive/gateway", array(
-      'method'      => 'POST',
-      'timeout'     => 20,
-      'httpversion' => '1.1',
-      'headers'     => array(
-        'Content-Type' => 'application/json'
-      ),
-      'body'        => $req
-    ));
-
-    $res = json_decode($post['body']);
-    $action = $res->result->action;
-    $order_id = $_POST['order_id'];
-    $order = wc_get_order( $order_id );
-    $order->update_meta_data( '_agematch_eligible', 'false' );
-    $order->update_meta_data( '_veratad_verified', $action );
-    $order->set_billing_first_name($_POST['fn']);
-    $order->set_billing_last_name($_POST['ln']);
-    $order->set_shipping_first_name($_POST['fn']);
-    $order->set_shipping_last_name($_POST['ln']);
-    $this->changed_by_api($order_id, $action, "AGEMATCH");
-    if($this->options->get_veratad_store_dob()){
-      $order->update_meta_data( '_veratad_dob', $_POST['dob'] );
-    }
-    $order->save();
-    $customer_id = $_POST['customer_id'];
-    if($customer_id != 0){
-      update_user_meta( $customer_id, '_veratad_verified', $action);
-      update_user_meta( $customer_id, 'first_name', $_POST['fn']);
-      update_user_meta( $customer_id, 'last_name', $_POST['ln']);
-      update_user_meta( $customer_id, 'billing_first_name', $_POST['fn']);
-      update_user_meta( $customer_id, 'billing_last_name', $_POST['ln']);
-      update_user_meta( $customer_id, 'shipping_first_name', $_POST['fn']);
-      update_user_meta( $customer_id, 'shipping_last_name', $_POST['ln']);
-      $this->changed_by_api_user($customer_id, $action, 'AGEMATCH');
-      if($this->options->get_veratad_store_dob()){
-        update_user_meta($customer_id, '_veratad_dob', $_POST['dob'] );
-      }
-    }
-
-    echo json_encode($res);
-    exit;
-  }
-
-  function veratad_email( $order, $sent_to_admin, $plain_text, $email){
-
-    $order_id = $order->get_id();
-    $av_status = get_post_meta( $order_id, '_veratad_verified', true);
-
-    if($av_status == "PASS" || $av_status == "FAIL"){
-      $message = "The age and identity verification status is: $av_status";
-    }else{
-      $message = "There was no verification performed with this order";
-    }
-
-    $fail_message = "";
-    if($av_status == "PASS"){
-      $bg = "#228B22";
-    }elseif($av_status == "FAIL"){
-      $bg = "#8B0000";
-      $fail_message = "Since you allow orders to be accepted the user may be currently going through a second attempt or uploading a document.";
-    }else{
-      $bg = "#9400D3";
-    }
-
-    if ( $sent_to_admin ) {
-      echo '<table width="100%" style="margin-bottom:10px; margin-top:10px;">
-        <tr width="100%" bgcolor="'.$bg.'" style="padding:10px: margin-bottom:0px;">
-          <td width="100%" ><font color="#fff">'.$message.'</font></td>
-        </tr>
-        <tr width="100%" style="padding:10px: margin-top:0px;">
-          <td width="100%" style="padding:10px:">'.$fail_message.'</td>
-        </tr>
-      </table>';
-    }
-
-  }
 
     function add_second_attempt_script() { ?>
 <link rel="stylesheet" href="https://verataddev.com/dcams/v2/stable/style.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/jquery.validate.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.1/additional-methods.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
+
 
 
     <script type="text/javascript">
 
       jQuery( document ).ready(function() {
 
-        jQuery("#veratad_modal_av_second_attempt_form").modal({
-          escapeClose: false,
-          clickClose: false,
-          showClose: false
-        });
+        var modal_second_attempt = document.getElementById("veratad_modal_av_second_attempt_form");
+        if(modal_second_attempt){
+          modal_second_attempt.style.display = "block";
+        }
+
 
         <?php
 
@@ -838,6 +780,9 @@
 
          jQuery( "#upload" ).click(function() {
 
+           var modal_second_attempt_dcams = document.getElementById("veratad_modal_av_second_attempt_form");
+           modal_second_attempt_dcams.style.display = "none";
+
            var dob = jQuery("#veratad_dob").val();
            dob = dob.replace("-","");
            dob = dob.replace("-","");
@@ -866,7 +811,6 @@
              },
              onSuccess: function() {
                veratadModal.close();
-               jQuery.modal.close();
                jQuery("#initial-error").hide();
                jQuery("#pass").show();
                jQuery("#fail").hide();
@@ -874,7 +818,6 @@
              },
              onFailure: function() {
                //this is just an example. Handle the customer in your own frontend flow.
-               jQuery.modal.close();
                jQuery("#initial-error").hide();
                jQuery("#dcams-fail").show();
                jQuery("#fail").hide();
@@ -887,7 +830,6 @@
                jQuery("#fail").hide();
                jQuery("#upload").hide();
                veratadModal.close();
-               jQuery.modal.close();
              },
            });
          veratadModal.open();
@@ -900,6 +842,125 @@
     <script src="https://verataddev.com/dcams/v2/stable/initialize.js"></script>
 
 <?php
+}
+
+function veratad_ajax_agematch_second_attempt() {
+
+  $specs = $this->get_api_specs();
+
+  $test_mode = $specs['test_mode'];
+
+  $date_of_birth = $_POST['dob'];
+
+  if (strpos($date_of_birth, '-') !== false) {
+    $dob_type = "YYYY-MM-DD";
+  }else{
+    $dob_type = "MMDDYYYY";
+  }
+
+  $req_array  = array(
+    'user'  => $specs['user'],
+    'pass' => $specs['pass'],
+    'service' => 'AgeMatch5.0',
+    'reference' => $_POST['email'],
+    'rules' => $specs['rules'],
+    'target' => array(
+      'fn' => $_POST['fn'],
+      'ln' => $_POST['ln'],
+      'addr' => $_POST['addr'],
+      'zip' => $_POST['zip'],
+      'dob' => $_POST['dob'],
+      'ssn' => $_POST['ssn'],
+      'age' => $this->options->get_veratad_default_age_to_check(),
+      'dob_type' => $dob_type,
+      'email' => $_POST['email'],
+      'phone' => $_POST['phone']
+    )
+  );
+
+
+  if($test_mode){
+    $req_array['target']['test_key'] = $specs['test_key'];
+  }
+
+  $req =  json_encode(new \ArrayObject($req_array));
+
+  $post = wp_remote_post("https://production.idresponse.com/process/comprehensive/gateway", array(
+    'method'      => 'POST',
+    'timeout'     => 20,
+    'httpversion' => '1.1',
+    'headers'     => array(
+      'Content-Type' => 'application/json'
+    ),
+    'body'        => $req
+  ));
+
+  $res = json_decode($post['body']);
+  $action = $res->result->action;
+  $order_id = $_POST['order_id'];
+  $order = wc_get_order( $order_id );
+  $order->update_meta_data( '_agematch_eligible', 'false' );
+  $order->update_meta_data( '_veratad_verified', $action );
+  $order->set_billing_first_name($_POST['fn']);
+  $order->set_billing_last_name($_POST['ln']);
+  $order->set_shipping_first_name($_POST['fn']);
+  $order->set_shipping_last_name($_POST['ln']);
+  $this->changed_by_api($order_id, $action, "AGEMATCH");
+  if($this->options->get_veratad_store_dob()){
+    $order->update_meta_data( '_veratad_dob', $_POST['dob'] );
+  }
+  $order->save();
+  $customer_id = $_POST['customer_id'];
+  if($customer_id != 0){
+    update_user_meta( $customer_id, '_veratad_verified', $action);
+    update_user_meta( $customer_id, 'first_name', $_POST['fn']);
+    update_user_meta( $customer_id, 'last_name', $_POST['ln']);
+    update_user_meta( $customer_id, 'billing_first_name', $_POST['fn']);
+    update_user_meta( $customer_id, 'billing_last_name', $_POST['ln']);
+    update_user_meta( $customer_id, 'shipping_first_name', $_POST['fn']);
+    update_user_meta( $customer_id, 'shipping_last_name', $_POST['ln']);
+    $this->changed_by_api_user($customer_id, $action, 'AGEMATCH');
+    if($this->options->get_veratad_store_dob()){
+      update_user_meta($customer_id, '_veratad_dob', $_POST['dob'] );
+    }
+  }
+
+  echo json_encode($res);
+  exit;
+}
+
+function veratad_email( $order, $sent_to_admin, $plain_text, $email){
+
+  $order_id = $order->get_id();
+  $av_status = get_post_meta( $order_id, '_veratad_verified', true);
+
+  if($av_status == "PASS" || $av_status == "FAIL"){
+    $message = "The age and identity verification status is: $av_status";
+  }else{
+    $message = "There was no verification performed with this order";
+  }
+
+  $fail_message = "";
+  if($av_status == "PASS"){
+    $bg = "#228B22";
+  }elseif($av_status == "FAIL"){
+    $bg = "#8B0000";
+    $fail_message = "Since you allow orders to be accepted the user may be currently going through a second attempt or uploading a document.";
+  }else{
+    $bg = "#9400D3";
+  }
+
+  if ( $sent_to_admin ) {
+    echo '<table width="100%" style="margin-bottom:10px; margin-top:10px;">
+      <tr width="100%" bgcolor="'.$bg.'" style="padding:10px: margin-bottom:0px;">
+        <td width="100%" ><font color="#fff">'.$message.'</font></td>
+      </tr>
+      <tr width="100%" style="padding:10px: margin-top:0px;">
+        <td width="100%" style="padding:10px:">'.$fail_message.'</td>
+      </tr>
+    </table>';
+  }
+
 }
 
   }

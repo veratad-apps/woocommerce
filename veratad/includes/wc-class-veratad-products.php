@@ -94,7 +94,8 @@
           '.$under.'
           </button></a>';
 
-    echo '<div id="veratad_popup" class="modal" style="text-align:center; padding-top:20px; padding-bottom:20px;">
+    echo '<div id="veratad_popup" class="veratad-modal-woo">
+    <div id="" class="veratad-modal-content-woo" style="text-align:center; padding-top:20px; padding-bottom:20px;">
             <div style="padding-top:20px; padding-bottom:20px;">
               <div id="header_pop_up" >'.$header.'</div>
               <p id="reset_message" style="display:none; padding-top:40px;">'.$reset.'</p>
@@ -105,6 +106,7 @@
               </button>
               '.$under_button.'
               </div>
+            </div>
             </div>';
 
       }
@@ -112,20 +114,15 @@
 
 
       function add_veratad_popup_ajax() { ?>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" />
-      <script type="text/javascript">
+    <script type="text/javascript">
 
         jQuery( document ).ready(function() {
 
           var visited = localStorage['hide_underage'];
 
           if (!visited || visited === "true") {
-            jQuery("#veratad_popup").modal({
-              escapeClose: false,
-              clickClose: false,
-              showClose: false
-            });
+            var modal = document.getElementById("veratad_popup");
+            modal.style.display = "block";
           }
 
            jQuery( ".veratad_popup_age" ).click(function() {

@@ -4,7 +4,7 @@
 * Plugin Name: Veratad for WooCommerce
 * Plugin URI: https://www.veratad.com
 * Description: Age and Identity Verification
-* Version: 1.0.1
+* Version: 1.0.3
 * Author: The Veratad App Team
 * Author URI: https://www.veratad.com
 * License: GPL2
@@ -98,13 +98,16 @@
           }
 
           $hide = $_SESSION['hide_underage'];
-          if($hide != "true"){
+
             // add the av message to thank you page when order acceptance is active
-            add_action( 'woocommerce_thankyou_order_received_text', array($api, 'veratad_add_message_to_thank_you') );
-          }
+            add_action( 'woocommerce_thankyou', array($api, 'veratad_add_message_to_thank_you') );
+
+            //add the JS script for the second attempt agematch and dcams
+            add_action( 'woocommerce_thankyou_order_received_text', array($api, 'add_top_messages') );
+
 
           //add the JS script for the second attempt agematch and dcams
-          add_action( 'woocommerce_thankyou_order_received_text', array($api, 'add_second_attempt_script') );
+          add_action( 'woocommerce_thankyou', array($api, 'add_second_attempt_script') );
 
           //add JS to checkout
           add_action( 'woocommerce_after_checkout_form', array($api, 'add_checkout_script') );
@@ -113,9 +116,6 @@
           add_action( 'wp_ajax_veratad_ajax_request', array($api,'veratad_ajax_agematch_second_attempt') );
           add_action( 'wp_ajax_nopriv_veratad_ajax_request', array($api,'veratad_ajax_agematch_second_attempt'));
 
-
-
-
           if($options->get_veratad_popup_activation()){
 
           //add popup
@@ -123,7 +123,7 @@
           add_action('wp_head', 'modal_css');
           add_action('wp_head', array($products, 'add_veratad_popup_ajax'));
 
-          add_action('wp_footer', array($products,'add_popup_html'));
+          add_action('wp_body_open', array($products,'add_popup_html'));
           add_action( 'wp_ajax_my_ajax_request', array($products,'veratad_handle_ajax_request') );
           add_action( 'wp_ajax_nopriv_my_ajax_request', array($products,'veratad_handle_ajax_request'));
 
@@ -131,10 +131,29 @@
 
             ?>
             <style>
-                        .blocker {
-                position: fixed !important;
-                z-index: 10 !important;
+
+            .veratad-modal-woo {
+              display: none; /* Hidden by default */
+              position: fixed; /* Stay in place */
+              z-index: 99999; /* Sit on top */
+              left: 0;
+              top: 0;
+              width: 100%; /* Full width */
+              height: 100%; /* Full height */
+              overflow: auto; /* Enable scroll if needed */
+              background-color: rgb(0,0,0); /* Fallback color */
+              background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
             }
+
+            /* Modal Content/Box */
+            .veratad-modal-content-woo {
+              background-color: #fefefe;
+              margin: 15% auto; /* 15% from the top and centered */
+              padding: 20px;
+              border: 1px solid #888;
+              width: 50%; /* Could be more or less, depending on screen size */
+            }
+
 
             </style>
 
@@ -142,11 +161,11 @@
           }
 
 
-          add_filter( 'get_terms', array($products, 'veratad_get_subcategory_terms'), 10, 3 );
-          add_action( 'woocommerce_product_query', array($products, 'veratad_hide_products_category_shop') );
+          //add_filter( 'get_terms', array($products, 'veratad_get_subcategory_terms'), 10, 3 );
+          //add_action( 'woocommerce_product_query', array($products, 'veratad_hide_products_category_shop') );
 
-          //return 404 for hidden roducts when underage
-          add_action('wp', array($products,'prevent_access_to_product_page' ));
+          //return 404 for hidden products when underage
+          //add_action('wp', array($products,'prevent_access_to_product_page' ));
 
           }
 

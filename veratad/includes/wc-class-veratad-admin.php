@@ -567,7 +567,7 @@ function av_add_meta_boxes()
 						}
 				}
 
-				$cat['no_filter'] = 'Do Not Hide Any';
+				//$cat['no_filter'] = 'ALL';
 
 				$settings = apply_filters( 'veratad_general_settings', array(
 

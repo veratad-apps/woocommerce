@@ -69,7 +69,7 @@ if ( ! defined( 'ABSPATH' ) ) {
       		}
 
           public function get_popup_resetting_text() {
-      			return get_option( self::$popup_resetting_text, 'Resetting products you can view...' );
+      			return get_option( self::$popup_resetting_text, 'Thank you...' );
       		}
 
           public function get_popup_header_text() {
