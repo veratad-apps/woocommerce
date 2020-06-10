@@ -15,6 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
           public static $default_age_to_check = 'veratad_default_age_to_check';
           public static $dob_ssn_text = 'dob_ssn_alert_text';
           public static $collect_dob = 'veratad_dob_on';
+          public static $veratad_second_attempt_on = 'veratad_second_attempt_on';
           public static $collect_ssn = 'veratad_ssn_on';
           public static $av_failure_text = 'av_failure_text';
           public static $order_acceptance = 'veratad_order_acceptance';
@@ -205,6 +206,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
           public function get_veratad_av_failure_text() {
       			return get_option( self::$av_failure_text, 'Something went wrong. We were not able to verify your age. Please check your details and try again.');
+      		}
+
+          public function get_veratad_second_attempt_on() {
+      			$res = get_option( self::$veratad_second_attempt_on, 'yes');
+            if($res === "yes"){
+              return true;
+            }
       		}
 
           public function get_veratad_dob_collect() {

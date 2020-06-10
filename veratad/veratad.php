@@ -4,7 +4,7 @@
 * Plugin Name: Veratad for WooCommerce
 * Plugin URI: https://www.veratad.com
 * Description: Age and Identity Verification
-* Version: 1.0.3
+* Version: 1.0.4
 * Author: The Veratad App Team
 * Author URI: https://www.veratad.com
 * License: GPL2
@@ -99,6 +99,8 @@
 
           $hide = $_SESSION['hide_underage'];
 
+          if($options->get_veratad_second_attempt_on()){
+
             // add the av message to thank you page when order acceptance is active
             add_action( 'woocommerce_thankyou', array($api, 'veratad_add_message_to_thank_you') );
 
@@ -115,7 +117,8 @@
           //AgeMatch Second attempt AJAX request
           add_action( 'wp_ajax_veratad_ajax_request', array($api,'veratad_ajax_agematch_second_attempt') );
           add_action( 'wp_ajax_nopriv_veratad_ajax_request', array($api,'veratad_ajax_agematch_second_attempt'));
-
+        }
+        
           if($options->get_veratad_popup_activation()){
 
           //add popup

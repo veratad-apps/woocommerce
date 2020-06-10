@@ -353,10 +353,18 @@ function av_add_meta_boxes()
 
 					array(
 						'type'     => 'checkbox',
+						'id'       => 'veratad_second_attempt_on',
+						'name'     => __( 'Second Attempt', 'my-textdomain' ),
+						'desc'     => __( 'Give the user a second attempt upon initial fail', 'my-textdomain' ),
+						'default'  => 'yes',
+					),
+
+					array(
+						'type'     => 'checkbox',
 						'id'       => 'veratad_dob_on',
 						'name'     => __( 'Date of Birth', 'my-textdomain' ),
 						'desc'     => __( 'Collect DOB at Checkout', 'my-textdomain' ),
-						'default'  => 'no',
+						'default'  => 'yes',
 					),
 
 					array(
@@ -364,7 +372,7 @@ function av_add_meta_boxes()
 						'id'       => 'veratad_ssn_on',
 						'name'     => __( 'Last 4 SSN', 'my-textdomain' ),
 						'desc'     => __( 'Collect Last 4 SSN at Checkout.', 'my-textdomain' ),
-						'default'  => 'no',
+						'default'  => 'yes',
 					),
 
 					array(
