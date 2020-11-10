@@ -29,8 +29,8 @@
           'city' => $_POST[''.$type.'_city'],
           'state' => $_POST[''.$type.'_state'],
           'zip' => $_POST[''.$type.'_postcode'],
-          'dob' => $_POST['veratad_'.$type.'_dob'],
-          'ssn' => $_POST['veratad_'.$type.'_ssn'],
+          'dob' => $_POST['veratad_billing_dob'],
+          'ssn' => $_POST['veratad_billing_ssn'],
           'phone' => $_POST[''.$type.'_phone'],
           'email' => $_POST[''.$type.'_email'],
           'age' => $this->options->get_veratad_default_age_to_check()
@@ -39,11 +39,11 @@
       return $target;
     }
 
-    public function get_api_specs(){
+    public function get_api_specs( $state ){
       $specs = array(
         'user' => $this->options->get_veratad_user(),
         'pass' => $this->options->get_veratad_pass(),
-        'rules' => $this->options->get_veratad_rules(),
+        'rules' => $this->options->get_veratad_rules( $state ),
         'test_mode' => $this->options->get_veratad_test_mode(),
         'test_key' => $this->options->get_test_key()
       );
@@ -100,78 +100,7 @@
 
 
 
-    public function is_verified_veratad($order_id) {
 
-      $order = wc_get_order( $order_id );
-      $order->update_meta_data( '_agematch_eligible', 'true' );
-      $order->save();
-
-      $specs = $this->get_api_specs();
-
-      $target = $this->get_target('billing');
-      $reference = $target['email'];
-
-      $dob = $target['dob'];
-
-
-      if (strpos($dob, '-') !== false) {
-        $dob_type = "YYYY-MM-DD";
-      }else{
-        $dob_type = "MMDDYYYY";
-      }
-
-      $target['dob_type'] = $dob_type;
-
-
-
-      $test_mode = $specs['test_mode'];
-
-      if($test_mode){
-        $target['test_key'] = $specs['test_key'];
-      }
-
-      if($this->options->get_veratad_store_dob()){
-        $order = wc_get_order( $order_id );
-        $order->update_meta_data( '_veratad_dob', $dob );
-        $order->save();
-        $customer_id = get_current_user_id();
-        if(is_user_logged_in()){
-          update_user_meta($customer_id, '_veratad_dob', $dob );
-        }
-
-      }
-
-      $req_array  = array(
-        'user'  => $specs['user'],
-        'pass' => $specs['pass'],
-        'service' => 'AgeMatch5.0',
-        'reference' => $reference,
-        'rules' => $specs['rules'],
-        'target' => $target
-      );
-
-      $req =  json_encode(new \ArrayObject($req_array));
-
-
-      $post = wp_remote_post("https://production.idresponse.com/process/comprehensive/gateway", array(
-        'method'      => 'POST',
-        'timeout'     => 20,
-        'httpversion' => '1.1',
-        'headers'     => array(
-          'Content-Type' => 'application/json'
-        ),
-        'body'        => $req
-      ));
-
-      $res = json_decode($post['body']);
-
-      if($res->result->action != "PASS"){
-        return false;
-      }else{
-        return true;
-      }
-
-    }
 
     public function is_verified_veratad_block_order() {
 
@@ -231,15 +160,7 @@
 
     }
 
-    public function get_customer_av_status(){
-      $customer_id = get_current_user_id();
-      $customer_action = get_user_meta( $customer_id, '_veratad_verified', true);
-      if($customer_action == "PASS"){
-        return true;
-      }else{
-        return false;
-      }
-    }
+
 
     public function changed_by_api($order_id, $av_status, $service){
       $timestamp = current_time( "Y-m-d h:i:s");
@@ -256,7 +177,16 @@
         $order = wc_get_order( $order_id );
         $order->update_meta_data( '_veratad_verified', 'PASS' );
         $order->save();
-        $this->changed_by_api($order_id, 'PASS', 'VERIFIED ACCOUNT');
+        $this->changed_by_api($order_id, 'VERIFIED ACCOUNT', 'SYSTEM');
+    } , 10, 2);
+    }
+
+    public function veratad_order_data_save_excluded() {
+      add_action('woocommerce_checkout_update_order_meta',function( $order_id, $posted) {
+        $order = wc_get_order( $order_id );
+        $order->update_meta_data( '_veratad_verified', 'EXCLUDED' );
+        $order->save();
+        $this->changed_by_api($order_id, 'EXCLUDED', 'SYSTEM');
     } , 10, 2);
     }
 
@@ -289,18 +219,18 @@
 
     public function handle_api_response_order_acceptance($order_id){
 
-      $hide = $_SESSION['hide_underage'];
-
-      if($hide == "false" || !$hide){
-
       $customer_id = get_current_user_id();
+      $order = wc_get_order( $order_id );
+      $billing_country = $order->get_billing_country();
 
+      $international_exclude = $this->options->get_veratad_international_exclude();
+
+      if(($billing_country == "US" && $international_exclude) || !$international_exclude){
       if(is_user_logged_in()){
         $customer_verified = $this->get_customer_av_status();
         if($customer_verified){
           $this->veratad_order_data_save_already_verified();
         }else{
-          //$result = $this->is_verified_veratad($order_id);
           if($this->is_verified_veratad($order_id)){
             update_user_meta( $customer_id, '_veratad_verified', "PASS");
             $this->veratad_order_data_save_pass();
@@ -324,6 +254,10 @@
         }
       }
     }
+    else{
+      $this->veratad_order_data_save_excluded();
+    }
+
   }
 
 
@@ -373,62 +307,11 @@
 
     }
 
-    public function not_order_acceptance_update_order($order_id){
 
-      $hide = $_SESSION['hide_underage'];
-      $_SESSION['veratad_attempt'] = null;
-
-      if($hide == "false" || !$hide){
-
-      $customer_id = get_current_user_id();
-
-      $target = $this->get_target('billing');
-
-      $dob = $target['dob'];
-
-      if($this->options->get_veratad_store_dob()){
-        $order = wc_get_order( $order_id );
-        $order->update_meta_data( '_veratad_dob', $dob );
-        $order->save();
-        $customer_id = get_current_user_id();
-        if(is_user_logged_in()){
-          update_user_meta($customer_id, '_veratad_dob', $dob );
-        }
-
-      }
-
-      if(is_user_logged_in()){
-        $customer_verified = $this->get_customer_av_status();
-        if($customer_verified){
-          $this->veratad_order_data_save_already_verified();
-        }else{
-          update_user_meta( $customer_id, '_veratad_verified', "PASS");
-          $this->veratad_order_data_save_pass();
-        }
-      }else{
-          $this->veratad_order_data_save_pass();
-      }
-    }
-    }
 
 
     public function handle_api_response_not_order_acceptance(){
 
-      $hide = $_SESSION['hide_underage'];
-
-      if($hide == "false" || !$hide){
-        if(!$_SESSION['veratad_attempt']){
-          $attempt = 0;
-        }else{
-          $attempt = $_SESSION['veratad_attempt'];
-        }
-        $_SESSION['veratad_attempt'] = $attempt + 1;
-
-        $session_attempt = $_SESSION['veratad_attempt'];
-
-        if($session_attempt >= 3){
-          wc_add_notice($this->options->get_av_attempts_text(), 'error');
-        }else{
 
       $block = $this->block();
       $valid_fields = $this->additional_fields_valid();
@@ -449,8 +332,7 @@
             }
           }
         }
-      }
-      }
+
     }
 
     public function block_order_if_different_name(){
@@ -498,8 +380,11 @@
       $customer_name = strtolower($customer_fn . $customer_ln);
 
       if($billing_name != $customer_name){
-        wc_add_notice('You can not order with a different name then your verified account.', 'error');
-        return true;
+        //wc_add_notice('You can not order with a different name then your verified account.', 'error');
+      update_user_meta( $customer_id, '_veratad_verified', "");
+      $timestamp = current_time( "Y-m-d h:i:s");
+      add_user_meta( $customer_id, '_veratad_changed_by', "$timestamp / SYSTEM / NONE" );
+        return false;
       }else{
         return false;
       }
@@ -507,7 +392,7 @@
 
     }
 
-   
+
     public function dcams_callback() {
       $data = file_get_contents("php://input");
       $array = json_decode($data, true);
@@ -526,6 +411,11 @@
 
       $order_id = $array['reference'];
       $order = wc_get_order( $order_id );
+      if($action == "PASS"){
+        $order->update_status('processing');
+      }elseif($action == "PENDING"){
+        $order->update_status('pending-v');
+      }
       $order->update_meta_data( '_veratad_verified', $action );
       $order->update_meta_data( '_veratad_id_front', $idfront );
       $order->update_meta_data( '_veratad_id_back', $idback );
@@ -542,30 +432,13 @@
 
     if( isset( $_GET['key'] ) && is_wc_endpoint_url( 'order-received' ) ) {
       $order_id = wc_get_order_id_by_order_key( $_GET['key'] );
-      $order = wc_get_order($order_id);
-      $billing_fn = $order->get_billing_first_name();
-      $billing_ln = $order->get_billing_last_name();
-      $billing_addr = $order->get_billing_address_1();
-      $billing_addr_two = $order->get_billing_address_2();
-      $billing_city = $order->get_billing_city();
-      $billing_zip = $order->get_billing_postcode();
-      $billing_email = $order->get_billing_email();
-      $billing_phone = $order->get_billing_phone();
-      $customer_id = $order->get_user_id();
       $av_status = get_post_meta( $order_id, '_veratad_verified', true);
-      $eligible = get_post_meta( $order_id, '_agematch_eligible', true);
     }
 
-    $initial_fail_text = $this->options->get_av_failure_text_acceptance();
     $second_attempt_av_success = $this->options->get_second_attempt_av_success();
-    $second_attempt_av_failure = $this->options->get_second_attempt_av_failure();
-    $intro_text = $this->options->get_second_attempt_av_intro();
-    $dcams_intro = $this->options->get_second_attempt_dcams_intro();
 
     if($av_status == "PASS"){
       echo '<div id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>';
-    }elseif($eligible != "true"){
-      echo '<div id="fail" class="woocommerce-error" role="alert">'.$second_attempt_av_failure .'</div>';
     }
 
   }
@@ -576,16 +449,35 @@
         if( isset( $_GET['key'] ) && is_wc_endpoint_url( 'order-received' ) ) {
           $order_id = wc_get_order_id_by_order_key( $_GET['key'] );
           $order = wc_get_order($order_id);
-          $billing_fn = $order->get_billing_first_name();
-          $billing_ln = $order->get_billing_last_name();
-          $billing_addr = $order->get_billing_address_1();
-          $billing_addr_two = $order->get_billing_address_2();
-          $billing_city = $order->get_billing_city();
-          $billing_zip = $order->get_billing_postcode();
-          $billing_email = $order->get_billing_email();
-          $billing_phone = $order->get_billing_phone();
+          $address_type = $this->options->get_billing_or_shipping();
+          if ($address_type == "billing"){
+            $billing_fn = $order->get_billing_first_name();
+            $billing_ln = $order->get_billing_last_name();
+            $billing_addr = $order->get_billing_address_1();
+            $billing_addr_two = $order->get_billing_address_2();
+            $billing_city = $order->get_billing_city();
+            $billing_state = $order->get_billing_state();
+            $billing_zip = $order->get_billing_postcode();
+            $billing_email = $order->get_billing_email();
+            $billing_phone = $order->get_billing_phone();
+          }else{
+            $billing_fn = $order->get_shipping_first_name();
+            $billing_ln = $order->get_shipping_last_name();
+            $billing_addr = $order->get_shipping_address_1();
+            $billing_addr_two = $order->get_shipping_address_2();
+            $billing_city = $order->get_shipping_city();
+            $billing_state = $order->get_shipping_state();
+            $billing_zip = $order->get_shipping_postcode();
+            $billing_email = $order->get_billing_email();
+            $billing_phone = null;
+          }
+
           $customer_id = $order->get_user_id();
           $av_status = get_post_meta( $order_id, '_veratad_verified', true);
+          if($av_status && $av_status != "PASS" && $av_status != "EXCLUDED"){
+            $order->update_status( 'not-verified' );
+          }
+
           $eligible = get_post_meta( $order_id, '_agematch_eligible', true);
         }
 
@@ -599,18 +491,30 @@
           $ssn_style = "none";
         }
 
+
+
+        $state_rules_dcams = $this->options->get_dcams_rules($billing_state);
+
+
         $initial_fail_text = $this->options->get_av_failure_text_acceptance();
         $second_attempt_av_success = $this->options->get_second_attempt_av_success();
         $second_attempt_av_failure = $this->options->get_second_attempt_av_failure();
         $intro_text = $this->options->get_second_attempt_av_intro();
         $dcams_intro = $this->options->get_second_attempt_dcams_intro();
 
+        $ssn_req = $this->options->get_veratad_ssn_second_attempt_required();
+        if($ssn_req){
+          $ssn_required = "*";
+        }else{
+          $ssn_required = "";
+        }
+
         $try_again_form = '<div id="veratad_modal_av_second_attempt_form" class="veratad-modal-woo" style="padding-top:20px; padding-bottom:20px;">
         <div id="veratad-try-again" class="veratad-modal-content-woo">
         <div id="veratad-try-again-content" style="padding:15px 15px 15px 15px;">
         <p style="font-weight:1000; font-size:35px;">'.$initial_fail_text.' </p>
         <div style="display:none;" id="pass" class="woocommerce-message" role="alert">'.$second_attempt_av_success .'</div>
-          <div style="display:none;" id="dcams-fail" class="woocommerce-error" role="alert">'. $second_attempt_av_failure .'</div>
+        <div style="display:none;" id="dcams-fail" class="woocommerce-error" role="alert">'. $second_attempt_av_failure .'</div>
             <div style="display:none;" id="fail" >'.$dcams_intro.'</div>
             <p id="veratad_intro_text">'.$intro_text.'</p>
             <form id="veratad-try-again-form">
@@ -618,14 +522,16 @@
             <p class="form-row form-row-first validate-required" id="fn-field" data-priority="10"><label for="fn" class="">First name&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="text" class="input-text " name="fn" id="billing_first_name" placeholder=""  value="'.$billing_fn.'" autocomplete="given-name" required/></span></p>
             <p class="form-row form-row-last validate-required" id="ln-field" data-priority="20"><label for="ln class="">Last name&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="text" class="input-text " name="ln" id="ln" placeholder=""  value="'.$billing_ln.'" autocomplete="family-name" /></span></p>
             <input type="hidden" class="input-text " name="addr" id="addr" placeholder="House number and street name"  value="'.$billing_addr.'" autocomplete="address-line1" />
-            <input type="hidden" class="input-text " name="addr2" id="addr2" placeholder="Apartment, suite, unit etc. (optional)"  value="'.$billing_two.'" autocomplete="address-line2" />
+            <input type="hidden" class="input-text " name="addr2" id="addr2" placeholder="Apartment, suite, unit etc. (optional)"  value="'.$billing_addr_two.'" autocomplete="address-line2" />
             <input type="hidden" class="input-text " name="billing_city" id="billing_city" placeholder=""  value="'.$billing_city.'" autocomplete="address-level2" />
             <input type="hidden" class="input-text " name="billing_postcode" id="billing_postcode" placeholder=""  value="'.$billing_zip.'" autocomplete="postal-code" />
             <p class="form-row my-field-class form-row-wide validate-required" id="veratad_billing_dob_field" data-priority=""><label for="veratad_dob" class="">Date of Birth&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="date" class="input-text" name="veratad_dob" id="veratad_dob" placeholder="MM/DD/YYYY"  value=""  /></span></p>
-            <p class="form-row my-field-class form-row-wide validate-required" id="ssn-field" data-priority="10"><label for="veratad_ssn" class="" style="display:'.$ssn_style.';">Last 4 SSN<abbr class="required" style="display:'.$ssn_style.';" title="required">*</abbr></label><span class="woocommerce-input-wrapper" ><input type="text" maxLength="4" style="display:'.$ssn_style.';" class="input-text " name="ssn" id="veratad_ssn" placeholder=""  value="" autocomplete="given-name" /></span></p>
+            <p class="form-row my-field-class form-row-wide validate-required" id="ssn-field" data-priority="10"><label for="veratad_ssn" class="" style="display:'.$ssn_style.';">Last 4 SSN<abbr class="required" style="display:'.$ssn_style.';" title="required">'.$ssn_required.'</abbr></label><span class="woocommerce-input-wrapper" ><input type="text" maxLength="4" style="display:'.$ssn_style.';" class="input-text " name="ssn" id="veratad_ssn" placeholder=""  value="" autocomplete="given-name" /></span></p>
             <input type="hidden" id="email" name="email" value="'.$billing_email.'">
+            <input type="hidden" id="state" name="state" value="'.$billing_state.'">
             <input type="hidden" id="dcams_site" name="dcams_site" value="'.$dcams_site.'">
             <input type="hidden" id="order_id" name="order_id" value="'.$order_id.'">
+            <input type="hidden" id="dcams_rules" name="dcams_rules" value="'.$state_rules_dcams.'">
             <input type="hidden" id="phone" name="phone" value="'.$billing_phone.'">
             <input type="hidden" id="customer_id" name="customer_id" value="'.$customer_id.'">
             <button type="button" class="button alt" name="veratad_submit_try-again" id="veratad-submit" data-value="Verify">Verify</button>
@@ -641,9 +547,7 @@
 
           if($av_status == "PASS"){
             $this->add_top_messages();
-          }elseif($eligible != "true"){
-            $this->add_top_messages();
-          }elseif($av_status != "PASS" && $eligible == "true"){
+          }elseif($av_status == "FAIL"){
             echo $try_again_form;
           }
 
@@ -668,13 +572,13 @@
 
         <?php
 
-        $ssn_req = $this->options->get_veratad_ssn_second_attempt_on();
+        $ssn_req = $this->options->get_veratad_ssn_second_attempt_required();
         if($ssn_req){
           $ssn = "true";
         }else{
           $ssn = "false";
         }
-        echo $ssn;
+
         ?>
 
         jQuery('#veratad-try-again-form').validate({
@@ -689,13 +593,14 @@
                 required: true
             },
             ssn: {
-                required: <?php echo $ssn; ?>
+                required: <?php echo "$ssn,"; ?>
+                minlength: 4,
+                maxlength: 4
             }
           }
         });
 
         var dcams_site = jQuery("#dcams_site").val();
-
 
          jQuery( "#veratad-submit" ).click(function() {
            var form = jQuery('#veratad-try-again-form');
@@ -709,6 +614,7 @@
               'fn': jQuery("#billing_first_name").val(),
               'ln': jQuery("#ln").val(),
               'addr': jQuery("#addr").val(),
+              'state': jQuery("#state").val(),
               'zip': jQuery("#billing_postcode").val(),
               'dob': jQuery("#veratad_dob").val(),
               'ssn': jQuery("#veratad_ssn").val(),
@@ -718,26 +624,28 @@
               'customer_id': jQuery("#customer_id").val()
             };
 
+
+
            jQuery("#veratad-submit").hide();
            jQuery("#verify_message").show();
 
            var ajaxurl = "<?php echo admin_url('admin-ajax.php'); ?>";
            jQuery.post(ajaxurl, data, function(response) {
+
              jQuery("#veratad-try-again-form").hide();
              jQuery("#veratad_intro_text").hide();
              var action = response.result.action;
              if(action == "PASS"){
-               jQuery("#pass").show();
-               jQuery("#initial-error").hide();
-               jQuery.modal.close();
+               jQuery(".woocommerce-thankyou-order-received").html('<div id="pass" class="woocommerce-message" role="alert"><?php echo $this->options->get_second_attempt_av_success(); ?></div>');
+               jQuery("#veratad_modal_av_second_attempt_form").hide();
              }else{
-               jQuery("#initial-error").hide();
+
                if(dcams_site != ''){
                  jQuery("#fail").show();
                  jQuery("#upload").show();
                }else{
-                 jQuery("#initial-error").hide();
-                 jQuery("#dcams-fail").show();
+                 jQuery("#veratad_modal_av_second_attempt_form").hide();
+                 jQuery(".woocommerce-thankyou-order-received").html('<div class="woocommerce-error" role="alert"><?php echo $this->options->get_second_attempt_av_failure(); ?></div>');
                }
 
              }
@@ -764,7 +672,7 @@
              reference: order_id,
              region: "<?php echo $this->options->get_dcams_default_region(); ?>",//set the default region if empty United States will be used, Values = United States, Canada, Asia, Australia, Africa, Europe, Oceania, South America
              region_select: true, //set to true if you want to allow the user to change their region or false to only allow documents from the default region value. If dcams_plus is fault the user will not have to select their region it is only for scanning.
-             rules: "<?php echo $this->options->get_dcams_rules(); ?>", //check out api.veratad.com for more rule sets
+             rules: jQuery("#dcams_rules").val(), //check out api.veratad.com for more rule sets
              age: "<?php echo $this->options->get_veratad_default_age_to_check(); ?>", //place the age you want to check here
              fn: jQuery("#billing_first_name").val(), //customer first name
              ln: jQuery("#ln").val(), //customer last name
@@ -779,21 +687,18 @@
              },
              onSuccess: function() {
                veratadModal.close();
-               jQuery("#initial-error").hide();
-               jQuery("#pass").show();
-               jQuery("#fail").hide();
+               jQuery(".woocommerce-thankyou-order-received").html('<div class="woocommerce-message" role="alert"><?php echo $this->options->get_second_attempt_av_success(); ?></div>');
                jQuery("#upload").hide();
              },
              onFailure: function() {
-               //this is just an example. Handle the customer in your own frontend flow.
                jQuery("#initial-error").hide();
-               jQuery("#dcams-fail").show();
+               jQuery(".woocommerce-thankyou-order-received").html('<div class="woocommerce-error" role="alert"><?php echo $this->options->get_second_attempt_av_failure(); ?></div>');
                jQuery("#fail").hide();
                jQuery("#upload").hide();
                veratadModal.close();
              },
              onError: function() {
-               //this is just an example. Handle the customer in your own frontend flow.
+
                jQuery("#initial-error").show();
                jQuery("#fail").hide();
                jQuery("#upload").hide();
@@ -812,9 +717,40 @@
 <?php
 }
 
+function email($to, $subject, $body){
+
+
+  $config = array();
+  $config['api_key'] = "key-22f53625ea0fadbfb6d75ff90ebdd3f8";
+  $config['api_url'] = "https://api.mailgun.net/v3/verataddev.com/messages";
+  $message = array();
+  $message['from'] = "Veratad System Message <no-reply@veratad.com>";
+  $message['to'] = "$to";
+  $message['subject'] = "$subject";
+  $message['html'] = "$body";
+
+  $chmail = curl_init();
+  curl_setopt($chmail, CURLOPT_URL, $config['api_url']);
+  curl_setopt($chmail, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+  curl_setopt($chmail, CURLOPT_USERPWD, "api:{$config['api_key']}");
+  curl_setopt($chmail, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($chmail, CURLOPT_CONNECTTIMEOUT, 10);
+  curl_setopt($chmail, CURLOPT_SSL_VERIFYPEER, 0);
+  curl_setopt($chmail, CURLOPT_SSL_VERIFYHOST, 0);
+  curl_setopt($chmail, CURLOPT_POST, true);
+  curl_setopt($chmail, CURLOPT_POSTFIELDS,$message);
+
+  $resultmail = curl_exec($chmail);
+  $json_result_mail = json_decode($resultmail);
+
+  return $json_result_mail;
+
+}
+
 function veratad_ajax_agematch_second_attempt() {
 
-  $specs = $this->get_api_specs();
+  $state = $_POST['state'];
+  $specs = $this->get_api_specs($state);
 
   $test_mode = $specs['test_mode'];
 
@@ -847,11 +783,15 @@ function veratad_ajax_agematch_second_attempt() {
   );
 
 
+
+
   if($test_mode){
     $req_array['target']['test_key'] = $specs['test_key'];
   }
 
   $req =  json_encode(new \ArrayObject($req_array));
+
+
 
   $post = wp_remote_post("https://production.idresponse.com/process/comprehensive/gateway", array(
     'method'      => 'POST',
@@ -869,10 +809,18 @@ function veratad_ajax_agematch_second_attempt() {
   $order = wc_get_order( $order_id );
   $order->update_meta_data( '_agematch_eligible', 'false' );
   $order->update_meta_data( '_veratad_verified', $action );
-  $order->set_billing_first_name($_POST['fn']);
-  $order->set_billing_last_name($_POST['ln']);
-  $order->set_shipping_first_name($_POST['fn']);
-  $order->set_shipping_last_name($_POST['ln']);
+  if($action == "PASS"){
+    $order->update_status('processing');
+  }
+  $address_type = $this->options->get_billing_or_shipping();
+  if($address_type == "billing"){
+    $order->set_billing_first_name($_POST['fn']);
+    $order->set_billing_last_name($_POST['ln']);
+  }else{
+    $order->set_shipping_first_name($_POST['fn']);
+    $order->set_shipping_last_name($_POST['ln']);
+  }
+
   $this->changed_by_api($order_id, $action, "AGEMATCH");
   if($this->options->get_veratad_store_dob()){
     $order->update_meta_data( '_veratad_dob', $_POST['dob'] );
@@ -883,10 +831,15 @@ function veratad_ajax_agematch_second_attempt() {
     update_user_meta( $customer_id, '_veratad_verified', $action);
     update_user_meta( $customer_id, 'first_name', $_POST['fn']);
     update_user_meta( $customer_id, 'last_name', $_POST['ln']);
+    $address_type = $this->options->get_billing_or_shipping();
+    if ($address_type == "billing"){
     update_user_meta( $customer_id, 'billing_first_name', $_POST['fn']);
     update_user_meta( $customer_id, 'billing_last_name', $_POST['ln']);
+  }else{
     update_user_meta( $customer_id, 'shipping_first_name', $_POST['fn']);
     update_user_meta( $customer_id, 'shipping_last_name', $_POST['ln']);
+  }
+
     $this->changed_by_api_user($customer_id, $action, 'AGEMATCH');
     if($this->options->get_veratad_store_dob()){
       update_user_meta($customer_id, '_veratad_dob', $_POST['dob'] );

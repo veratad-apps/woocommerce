@@ -9,6 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
       class WC_Veratad_Options {
 
+          public static $veratad_active = 'veratad_active';
           public static $username = 'veratad_user';
           public static $password = 'veratad_pass';
           public static $rules = 'veratad_rules';
@@ -24,6 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
           public static $dcams_site = 'veratad_dcams_site_name';
           public static $dcams_rules = 'dcams_rule_set';
           public static $veratad_ssn_second_attempt_on = 'veratad_ssn_second_attempt_on';
+          public static $veratad_ssn_second_attempt_required = 'veratad_ssn_second_attempt_required';
           public static $av_failure_text_acceptance = 'av_failure_text_acceptance';
           public static $second_attempt_av_success = 'second_attempt_av_success';
           public static $second_attempt_av_failure = 'second_attempt_av_failure';
@@ -34,6 +36,7 @@ if ( ! defined( 'ABSPATH' ) ) {
           public static $dcams_default_region = 'dcams_default_region';
           public static $veratad_test_mode = 'veratad_test_mode';
           public static $test_key = 'test_key';
+          public static $billing_or_shipping = 'billing_or_shipping';
           public static $checkout_fields_placement = 'checkout_fields_placement';
           public static $dob_ssn_title_text = 'dob_ssn_title_text';
           public static $checkout_background_color = 'checkout_background_color';
@@ -46,7 +49,22 @@ if ( ! defined( 'ABSPATH' ) ) {
           public static $veratad_underage_url = 'veratad_underage_url';
           public static $av_attempts_text = 'av_attempts_text';
           public static $modal_click_text = 'modal_click_text';
+          public static $veratad_international_exclude = 'veratad_international_exclude';
 
+
+          public function get_veratad_active() {
+      			$res = get_option( self::$veratad_active, 'no');
+            if($res === "yes"){
+              return true;
+            }
+      		}
+
+          public function get_veratad_international_exclude() {
+      			$res = get_option( self::$veratad_international_exclude, 'no');
+            if($res === "yes"){
+              return true;
+            }
+      		}
 
           public function get_modal_click_text() {
       			return get_option( self::$modal_click_text, 'Edit Age Verification Fields' );
@@ -100,6 +118,10 @@ if ( ! defined( 'ABSPATH' ) ) {
       			return get_option( self::$test_key, "general_identity" );
       		}
 
+          public function get_billing_or_shipping() {
+      			return get_option( self::$billing_or_shipping, "billing_or_shipping" );
+      		}
+
           public function get_checkout_background_color() {
       			return get_option( self::$checkout_background_color, "#F8F8F8"  );
       		}
@@ -151,20 +173,46 @@ if ( ! defined( 'ABSPATH' ) ) {
       			return get_option( self::$dcams_site );
       		}
 
-          public function get_dcams_rules() {
-      			return get_option( self::$dcams_rules, '' );
-      		}
 
-          public function get_veratad_rules() {
-      			return get_option( self::$rules, '' );
+          public function get_dcams_rules( $state ) {
+
+            $res = get_option( "dcams_state_rules_for_$state", '' );
+
+            if($res){
+              return $res;
+            }else{
+              return get_option( self::$dcams_rules, '' );
+            }
+
+          }
+
+          public function get_veratad_rules( $state ) {
+
+      			$res = get_option( "agematch_state_rules_for_$state", '' );
+
+            if($res){
+              return $res;
+            }else{
+              return get_option( self::$rules, '' );
+            }
+
       		}
 
           public function get_veratad_ssn_second_attempt_on() {
-      			$res = get_option( self::$veratad_ssn_second_attempt_on, 'yes');
+      			$res = get_option( self::$veratad_ssn_second_attempt_on, 'no');
             if($res === "yes"){
               return true;
             }
       		}
+
+          public function get_veratad_ssn_second_attempt_required() {
+      			$res = get_option( self::$veratad_ssn_second_attempt_required, 'no');
+            if($res === "yes"){
+              return true;
+            }
+      		}
+
+
 
           public function get_veratad_scan_dcams() {
       			$res = get_option( self::$veratad_scan_dcams, 'yes');

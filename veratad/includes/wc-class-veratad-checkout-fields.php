@@ -31,36 +31,8 @@
 
       function age_verification_on( $checkout ){
 
-        global $woocommerce;
+        return true;
 
-        $age_verification_products = $this->get_category_array();
-
-        $cat_ids = array();
-        foreach( WC()->cart->get_cart() as $cart_item ){
-          $product_id = $cart_item['product_id'];
-          $term_list = wp_get_post_terms($product_id,'product_cat',array('fields'=>'ids'));
-          $cat_ids[] = $term_list;
-
-        }
-
-        foreach($cat_ids as $ids){
-          foreach($age_verification_products as $products){
-            if(in_array("$products", $ids)){
-              $age_verification_on = true;
-              break;
-            }
-          }
-        }
-
-        $gifts_in_cart = WC()->session->get( 'group_order_data' );
-
-        if($gifts_in_cart || $age_verification_on){
-          $_SESSION['hide_underage'] = 'false';
-          return true;
-        }else{
-          $_SESSION['hide_underage'] = 'true';
-          return false;
-        }
       }
 
       function veratad_add_additional_fields_intro( $checkout ){

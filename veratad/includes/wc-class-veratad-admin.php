@@ -53,8 +53,6 @@ if ( ! class_exists( 'WC_Veratad_Admin' ) ) :
 
 
 
-
-
 		public function add_column_data_to_order($column){
 
 			//print_r($column);
@@ -195,6 +193,13 @@ function av_add_meta_boxes()
 
         // Sanitize user input  and update the meta field in the database.
 				$av_status = $_POST[ 'av_status' ];
+				$order = wc_get_order( $post_id );
+				if($av_status == "PASS"){
+					$order->update_status( 'processing' );
+				}else{
+					$order->update_status( 'not-verified' );
+				}
+
 				$username = $_POST[ 'username' ];
 				$timestamp = current_time( "Y-m-d h:i:s");
 				if($av_status != ''){
@@ -204,11 +209,62 @@ function av_add_meta_boxes()
 
 				$customer_id = $_POST[ 'customer_id' ];
 				if($customer_id != '' || $customer_id != "0"){
+
 					update_user_meta( $customer_id, '_veratad_verified', $_POST[ 'av_status' ]);
 					add_user_meta( $customer_id, '_veratad_changed_by', "$timestamp / $username / $av_status");
-				}
+
+			}
 
     }
+
+	public function register_awaiting_verification() {
+
+		register_post_status( 'wc-pending-v', array(
+				'label'                     => 'Review ID',
+				'public'                    => true,
+				'exclude_from_search'       => false,
+				'show_in_admin_all_list'    => true,
+				'show_in_admin_status_list' => true,
+				'label_count'               => _n_noop( 'Review ID (%s)', 'Review ID (%s)' )
+		) );
+
+    register_post_status( 'wc-not-verified', array(
+        'label'                     => 'Not Verified',
+        'public'                    => true,
+        'exclude_from_search'       => false,
+        'show_in_admin_all_list'    => true,
+        'show_in_admin_status_list' => true,
+        'label_count'               => _n_noop( 'Not Verified (%s)', 'Not Verified (%s)' )
+    ) );
+
+
+
+}
+
+
+public function add_awaiting_verification_to_order_statuses( $order_statuses ) {
+
+    $new_order_statuses = array();
+
+    // add new order status after processing
+    foreach ( $order_statuses as $key => $status ) {
+
+        $new_order_statuses[ $key ] = $status;
+
+        if ( 'wc-processing' === $key ) {
+            $new_order_statuses['wc-not-verified'] = 'Not Verified';
+						$new_order_statuses['wc-pending-v'] = 'Review ID';
+        }
+    }
+
+    return $new_order_statuses;
+}
+
+public function add_awaiting_verification_to_order_statuses_bulk( $bulk_actions ) {
+   $bulk_actions['mark_not-verified'] = 'Change status to not verified';
+	 $bulk_actions['mark_pending-v'] = 'Change status to review ID';
+   return $bulk_actions;
+}
 
 
 
@@ -309,8 +365,11 @@ function av_add_meta_boxes()
 		        return false;
 		    }
 				$av_status = $_POST['av_status'];
-		    update_user_meta( $user_id, '_veratad_verified', $av_status );
-				add_user_meta( $user_id, '_veratad_changed_by', "$timestamp / $username / $av_status" );
+				if($av_status){
+					update_user_meta( $user_id, '_veratad_verified', $av_status );
+				 	add_user_meta( $user_id, '_veratad_changed_by', "$timestamp / $username / $av_status" );
+				}
+
 		}
 
 
@@ -351,13 +410,7 @@ function av_add_meta_boxes()
 						'id'   => 'veratad_fields',
 					),
 
-					array(
-						'type'     => 'checkbox',
-						'id'       => 'veratad_second_attempt_on',
-						'name'     => __( 'Second Attempt', 'my-textdomain' ),
-						'desc'     => __( 'Give the user a second attempt upon initial fail', 'my-textdomain' ),
-						'default'  => 'yes',
-					),
+
 
 					array(
 						'type'     => 'checkbox',
@@ -430,48 +483,7 @@ function av_add_meta_boxes()
 						'id'   => 'veratad_group1_options'
 					),
 
-					array(
-						'name' => __( 'Rules', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => '',
-						'id'   => 'veratad_rule_entry',
-					),
 
-					array(
-						'type'     => 'select',
-						'id'       => 'veratad_rules',
-						'name'     => __( 'Ruleset', 'my-textdomain' ),
-						'desc_tip' => __( 'Choose a rule set to require elements from the order to match data found in the sources.', 'my-textdomain' ),
-						'default' => 'AgeMatch5_0_RuleSet_YOB',
-						'options'  => array(
-                  'AgeMatch5_0_RuleSet_YOB' => __('Name and Year of Birth Match'),
-									'AgeMatch5_0_RuleSet_SSN' => __('Name and SSN Match'),
-                  'AgeMatch5_0_RuleSet_YOB_SSN' => __('Name, Year of Birth and SSN Match'),
-									'AgeMatch5_0_RuleSet_DOB' => __('Name and Date of Birth Match'),
-									'AgeMatch5_0_RuleSet_DOB_SSN' => __('Name, Date of Birth and SSN Match'),
-									'AgeMatch5_0_RuleSet_ADDR' => __('Name and Address Match'),
-									'AgeMatch5_0_RuleSet_ADDR_YOB' => __('Name, Address and Year of Birth Match'),
-									'AgeMatch5_0_RuleSet_ADDR_YOB_SSN' => __('Name, Address, Year of Birth and SSN Match'),
-									'AgeMatch5_0_RuleSet_ADDR_DOB_SSN_PHONE' => __('Name, Address, Date of Birth, SSN and Phone Match'),
-									'AgeMatch5_0_RuleSet_ADDR_YOB_SSN_PHONE' => __('Name, Address, Year of Birth, SSN and Phone Match'),
-									'AgeMatch5_0_RuleSet_ADDR_DOB_PHONE' => __('Name, Address, Date of Birth and Phone Match'),
-									'AgeMatch5_0_RuleSet_ADDR_YOB_PHONE' => __('Name, Address, Year of Birth and Phone Match'),
-									'AgeMatch5_0_RuleSet_ADDR_SSN_PHONE' => __('Name, Address, SSN and Phone Match'),
-									'AgeMatch5_0_RuleSet_ADDR_PHONE' => __('Name, Address and Phone Match'),
-									'AgeMatch5_0_RuleSet_YOB_SSN_PHONE' => __('Name, Year of Birth, SSN and Phone Match'),
-									'AgeMatch5_0_RuleSet_DOB_SSN_PHONE' => __('Name, Date of Birth, SSN and Phone Match'),
-									'AgeMatch5_0_RuleSet_YOB_PHONE' => __('Name, Year of Birth and Phone Match'),
-									'AgeMatch5_0_RuleSet_DOB_PHONE' => __('Name, Date of Birth and Phone Match'),
-									'AgeMatch5_0_RuleSet_SSN_PHONE' => __('Name, SSN and Phone Match'),
-									'AgeMatch5_0_RuleSet_PHONE' => __('Name and Phone Match'),
-									'' => __('No Additional Match Rules'),
-    				),
-					),
-
-					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_rule_entry_section'
-					),
 
 					array(
 						'name' => __( 'Second Attempt', 'my-textdomain' ),
@@ -482,9 +494,25 @@ function av_add_meta_boxes()
 
 					array(
 						'type'     => 'checkbox',
+						'id'       => 'veratad_second_attempt_on',
+						'name'     => __( 'Activate', 'my-textdomain' ),
+						'desc'     => __( 'Give the user a second attempt upon initial fail', 'my-textdomain' ),
+						'default'  => 'yes',
+					),
+
+					array(
+						'type'     => 'checkbox',
 						'id'       => 'veratad_ssn_second_attempt_on',
-						'name'     => __( 'Last 4 SSN', 'my-textdomain' ),
+						'name'     => __( 'Last 4 SSN Collect', 'my-textdomain' ),
 						'desc'     => __( 'Collect Last 4 SSN on Second Attempt.', 'my-textdomain' ),
+						'default'  => 'no',
+					),
+
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_ssn_second_attempt_required',
+						'name'     => __( 'Last 4 SSN Required', 'my-textdomain' ),
+						'desc'     => __( 'Require Last 4 SSN on Second Attempt.', 'my-textdomain' ),
 						'default'  => 'no',
 					),
 
@@ -496,13 +524,7 @@ function av_add_meta_boxes()
 						'default' => 'Something went wrong. We were not able to verify your age. Please check your details and try again.'
 					),
 
-					array(
-						'type'     => 'textarea',
-						'id'       => 'av_attempts_text',
-						'name'     => __( 'Failure - Attempts Exceeded', 'my-textdomain' ),
-						'desc_tip' => __( 'This is the text that will be displayed to the user if they have no more AgeMatch attempts when block orders is active.', 'my-textdomain' ),
-						'default' => 'You have failed age verification and have no more attempts left.'
-					),
+				
 
 					array(
 						'type'     => 'textarea',
@@ -556,28 +578,38 @@ function av_add_meta_boxes()
 
 			} elseif ('general' == $current_section ||  !$current_section) {
 
-				$orderby = 'name';
-				$order = 'asc';
-				$hide_empty = false;
-				$cat_args = array(
-						'orderby'    => $orderby,
-						'order'      => $order,
-						'hide_empty' => $hide_empty,
-				);
-
-				$product_categories = get_terms( 'product_cat', $cat_args );
-				if( !empty($product_categories) ){
-					$cat = array();
-						foreach ($product_categories as $key => $category) {
-							$name = $category->name;
-							$id = $category->term_id;
-							$cat[$id] =  __($name);
-						}
-				}
-
-				//$cat['no_filter'] = 'ALL';
 
 				$settings = apply_filters( 'veratad_general_settings', array(
+
+					array(
+						'name' => __( 'Activate', 'my-textdomain' ),
+						'type' => 'title',
+						'desc' => '',
+						'id'   => 'veratad_active'
+					),
+					array(
+						'type'     => 'checkbox',
+						'id'       => 'veratad_active',
+						'name'     => __( 'Activate', 'my-textdomain' ),
+						'desc'     => __( 'Turn on verification', 'my-textdomain' ),
+						'default' => 'no'
+					),
+
+					array(
+
+                'type'        => 'taxonomy',
+                'id'          => 'prefix-taxonomy_02n5yb7lw898',
+                'name'        => esc_html__( 'Taxonomy', 'online-generator' ),
+                'taxonomy'    => 'post_tag',
+                'field_type'  => 'checkbox_list',
+                'std'         => ['Test'],
+                'placeholder' => esc_html__( 'Test', 'online-generator' ),
+
+					),
+					array(
+						'type' => 'sectionend',
+						'id'   => 'veratad_active_end'
+					),
 
 					array(
 						'name' => __( 'Credentials', 'my-textdomain' ),
@@ -613,14 +645,26 @@ function av_add_meta_boxes()
 						'id'   => 'veratad_settings'
 					),
 
+
+
 					array(
-						'type'     => 'multiselect',
-						'id'       => 'veratad_categories',
-						'name'     => __( 'Categories That Require Age Verification', 'my-textdomain' ),
-						'css'     => 'min-height:150px;',
-						'default' => 'no_filter',
-						'options' => $cat,
-						'desc_tip'     => __( 'If a category is selected then age verification will be active for any products in that category. If not, no age verification will be required.', 'my-textdomain' )
+						'type'     => 'checkbox',
+						'id'       => 'veratad_international_exclude',
+						'name'     => __( 'International Orders', 'my-textdomain' ),
+						'desc'     => __( 'Exclude orders from verification if they are outside of the US', 'my-textdomain' ),
+						'default' => 'no'
+					),
+
+					array(
+						'type'     => 'select',
+						'id'       => 'billing_or_shipping',
+						'name'     => __( 'Verification Address', 'my-textdomain' ),
+						'default' => 'billing',
+						'options'  => array(
+									'billing' => __('Billing'),
+									'shipping' => __('Shipping'),
+						),
+						'desc_tip' => __( 'Select if you want the verification process to be performed on the billing or shipping individual.', 'my-textdomain' ),
 					),
 
 					array(
@@ -699,24 +743,9 @@ function av_add_meta_boxes()
 						'name' => __( 'Settings', 'my-textdomain' ),
 						'type' => 'title',
 						'desc' => '',
-						'id'   => 'veratad_messaging',
+						'id'   => 'veratad_dcams_settings',
 					),
-					array(
-						'type'     => 'select',
-						'id'       => 'dcams_rule_set',
-						'name'     => __( 'Rule Set', 'my-textdomain' ),
-						'default' => 'DCAMS5_0_RuleSet_NAME_DOB',
-						'options'  => array(
-                  'DCAMS5_0_RuleSet_NAME_DOB' => __('Name and DOB Match'),
-                  'DCAMS5_0_RuleSet_NAME' => __('Name Match'),
-									'DCAMS5_0_RuleSet_NAME_ADDR' => __('Name and Address Match'),
-									'DCAMS5_0_RuleSet_NAME_STATE' => __('Name and State Match'),
-									'DCAMS5_0_RuleSet_NAME_STATE_DOB' => __('Name, State and DOB Match'),
-									'DCAMS5_0_RuleSet_NAME_ADDR_DOB' => __('Name, Address and DOB Match'),
-									'' => __('No Additional Match Rules'),
-    				),
-						'desc_tip' => __( 'Select a rule set to require elements from the customer order to match the document scanned.', 'my-textdomain' ),
-					),
+
 
 					array(
 						'type'     => 'select',
@@ -750,125 +779,171 @@ function av_add_meta_boxes()
 					)
 
 				) );
-			}elseif('faq' == $current_section){
+			}elseif('dcams_rules' == $current_section){
 
-				$settings = apply_filters( 'veratad_dcams', array(
+
+
+
+
+				$settings = apply_filters( 'dcams_rules', array(
 
 					array(
-						'name' => __( 'Frequently Asked Questions', 'my-textdomain' ),
+						'name' => __( 'Rules By State', 'my-textdomain' ),
 						'type' => 'title',
 						'desc' => '',
-						'id'   => 'veratad_faq',
+						'id'   => 'veratad_rules',
 					),
 					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_faq'
-					),
-
-					array(
-						'name' => __( 'How can I filter orders by verification status?', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => 'You can use the search bar to look for "PASS", "FAIL" or "PENDING" verification status.',
-						'id'   => 'veratad_faq_1',
-					),
-
-					array(
-						'name' => __( 'Are customers verified more than once?', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => 'No. Once a customer places an order with their account their age verification status is updated. Once their account status is set to "PASS" they will not be required to go through age verification again.',
-						'id'   => 'veratad_faq_2',
+						'type'     => 'select',
+						'id'       => 'dcams_rule_set',
+						'name'     => __( 'Default Rule Set', 'my-textdomain' ),
+						'default' => 'DCAMS5_0_RuleSet_NAME_DOB',
+						'options'  => array(
+                  'DCAMS5_0_RuleSet_NAME_DOB' => __('Name and DOB Match'),
+                  'DCAMS5_0_RuleSet_NAME' => __('Name Match'),
+									'DCAMS5_0_RuleSet_NAME_ADDR' => __('Name and Address Match'),
+									'DCAMS5_0_RuleSet_NAME_STATE' => __('Name and State Match'),
+									'DCAMS5_0_RuleSet_NAME_STATE_DOB' => __('Name, State and DOB Match'),
+									'DCAMS5_0_RuleSet_NAME_ADDR_DOB' => __('Name, Address and DOB Match'),
+									'' => __('No Additional Match Rules'),
+    				),
+						'desc_tip' => __( 'This is the rule set used by default unless there is a state soecific rule selected.', 'my-textdomain' ),
 					),
 
-					array(
-						'name' => __( 'What happens to a customer account when I change the verification status on an order?', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => 'Any time you change the verification status on an order if there is a customer account associated then the account verification status will also be changed to match that order status.',
-						'id'   => 'veratad_faq_3',
-					),
-
-					array(
-						'name' => __( 'Why do I not see any identity documents in the order view after upload?', 'my-textdomain' ),
-						'type' => 'title',
-						'desc' => 'Veratad must set up your stores callback to the storage and document scan system. Please make sure they have done this and provide them with your callback URL like: http://STORE_URL/?wc-api=dcams',
-						'id'   => 'veratad_faq_4',
-					),
-
-					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_faq_end'
-					)
 
 				) );
-			}elseif('popup' == $current_section){
+
+				global $woocommerce;
+$countries_obj = new WC_Countries();
+$states = $countries_obj->get_states('US');
+
+$dcams_rules = array();
+
+foreach ($states as $state_code => $state){
+	$dcams_rules = array(
+	'type'     => 'select',
+	'default' => '',
+	'options'  => array(
+				'' => __('Select a state specific rule'),
+				'DCAMS5_0_RuleSet_NAME' => __('Name Match'),
+				'DCAMS5_0_RuleSet_NAME_DOB' => __('Name and DOB Match'),
+				'DCAMS5_0_RuleSet_NAME_ADDR' => __('Name and Address Match'),
+				'DCAMS5_0_RuleSet_NAME_STATE' => __('Name and State Match'),
+				'DCAMS5_0_RuleSet_NAME_STATE_DOB' => __('Name, State and DOB Match'),
+				'DCAMS5_0_RuleSet_NAME_ADDR_DOB' => __('Name, Address and DOB Match'),
+	)
+);
+	$dcams_rules['name'] = $state;
+	$dcams_rules['id'] = "dcams_state_rules_for_" . $state_code;
+	array_push($settings, $dcams_rules);
+}
+
+$end = array(
+	'type' => 'sectionend',
+	'id'   => 'veratad_rules_end'
+);
+array_push($settings, $end);
+
+
+}elseif('agematch_rules' == $current_section){
 
 
 
-				$settings = apply_filters( 'veratad_popup', array(
+
+
+				$settings = apply_filters( 'agematch_rules', array(
 
 					array(
-						'name' => __( 'Popup', 'my-textdomain' ),
+						'name' => __( 'Rules By State', 'my-textdomain' ),
 						'type' => 'title',
 						'desc' => '',
-						'id'   => 'veratad_popup',
+						'id'   => 'veratad_rules',
+					),
+					array(
+						'type'     => 'select',
+						'id'       => 'veratad_rules',
+						'name'     => __( 'Default Ruleset', 'my-textdomain' ),
+						'desc_tip' => __( 'Choose a rule set to require elements from the order to match data found in the sources.', 'my-textdomain' ),
+						'default' => 'AgeMatch5_0_RuleSet_YOB',
+						'options'  => array(
+									'AgeMatch5_0_RuleSet_YOB' => __('Name and Year of Birth Match'),
+									'AgeMatch5_0_RuleSet_SSN' => __('Name and SSN Match'),
+									'AgeMatch5_0_RuleSet_YOB_SSN' => __('Name, Year of Birth and SSN Match'),
+									'AgeMatch5_0_RuleSet_DOB' => __('Name and Date of Birth Match'),
+									'AgeMatch5_0_RuleSet_DOB_SSN' => __('Name, Date of Birth and SSN Match'),
+									'AgeMatch5_0_RuleSet_ADDR' => __('Name and Address Match'),
+									'AgeMatch5_0_RuleSet_ADDR_YOB' => __('Name, Address and Year of Birth Match'),
+									'AgeMatch5_0_RuleSet_ADDR_YOB_SSN' => __('Name, Address, Year of Birth and SSN Match'),
+									'AgeMatch5_0_RuleSet_ADDR_DOB_SSN_PHONE' => __('Name, Address, Date of Birth, SSN and Phone Match'),
+									'AgeMatch5_0_RuleSet_ADDR_YOB_SSN_PHONE' => __('Name, Address, Year of Birth, SSN and Phone Match'),
+									'AgeMatch5_0_RuleSet_ADDR_DOB_PHONE' => __('Name, Address, Date of Birth and Phone Match'),
+									'AgeMatch5_0_RuleSet_ADDR_YOB_PHONE' => __('Name, Address, Year of Birth and Phone Match'),
+									'AgeMatch5_0_RuleSet_ADDR_SSN_PHONE' => __('Name, Address, SSN and Phone Match'),
+									'AgeMatch5_0_RuleSet_ADDR_PHONE' => __('Name, Address and Phone Match'),
+									'AgeMatch5_0_RuleSet_YOB_SSN_PHONE' => __('Name, Year of Birth, SSN and Phone Match'),
+									'AgeMatch5_0_RuleSet_DOB_SSN_PHONE' => __('Name, Date of Birth, SSN and Phone Match'),
+									'AgeMatch5_0_RuleSet_YOB_PHONE' => __('Name, Year of Birth and Phone Match'),
+									'AgeMatch5_0_RuleSet_DOB_PHONE' => __('Name, Date of Birth and Phone Match'),
+									'AgeMatch5_0_RuleSet_SSN_PHONE' => __('Name, SSN and Phone Match'),
+									'AgeMatch5_0_RuleSet_PHONE' => __('Name and Phone Match'),
+									'' => __('No Additional Match Rules'),
+						),
 					),
 
-					array(
-						'type'     => 'checkbox',
-						'id'       => 'veratad_popup_activation',
-						'name'     => __( 'Popup Activation', 'my-textdomain' ),
-						'desc'     => __( 'Enable popup.', 'my-textdomain' ),
-						'desc_tip' => __( 'If checked a user will have to agree to the age statement prior to entering the site.', 'my-textdomain' ),
-						'default' => 'yes'
-					),
-
-					array(
-						'type'     => 'text',
-						'id'       => 'veratad_underage_url',
-						'name'     => __( 'Underage URL Forward', 'my-textdomain' ),
-						'default' => "https://google.com",
-						'desc'     => __( 'This is where the user will be sent on "No" click.', 'my-textdomain' )
-					),
-
-					array(
-						'type'     => 'textarea',
-						'id'       => 'popup_header_text',
-						'name'     => __( 'Title', 'my-textdomain' ),
-						'desc_tip' => __( 'The text for the popup title.', 'my-textdomain' ),
-						'default' => 'Are you 21 or older?'
-					),
-
-					array(
-						'type'     => 'textarea',
-						'id'       => 'popup_resetting_text',
-						'name'     => __( 'Resetting Products Text', 'my-textdomain' ),
-						'desc_tip' => __( 'The text displayed while the user waits for the site to relead with products they can view.', 'my-textdomain' ),
-						'default' => 'Resetting products you can view...'
-					),
-
-					array(
-						'type'     => 'textarea',
-						'id'       => 'popup_underage_button',
-						'name'     => __( 'Under Age Button Text', 'my-textdomain' ),
-						'desc_tip' => __( 'The button text for under age', 'my-textdomain' ),
-						'default' => 'No'
-					),
-
-					array(
-						'type'     => 'textarea',
-						'id'       => 'popup_overage_button',
-						'name'     => __( 'Over Age Button Text', 'my-textdomain' ),
-						'desc_tip' => __( 'The button text for over age', 'my-textdomain' ),
-						'default' => 'Yes'
-					),
-
-					array(
-						'type' => 'sectionend',
-						'id'   => 'veratad_faq_end'
-					)
 
 				) );
+
+				global $woocommerce;
+$countries_obj = new WC_Countries();
+$states = $countries_obj->get_states('US');
+
+$agematch_rules = array();
+
+foreach ($states as $state_code => $state){
+	$agematch_rules = array(
+	'type'     => 'select',
+	'default' => '',
+	'options'  => array(
+				'AgeMatch5_0_RuleSet_YOB' => __('Name and Year of Birth Match'),
+				'AgeMatch5_0_RuleSet_SSN' => __('Name and SSN Match'),
+				'AgeMatch5_0_RuleSet_YOB_SSN' => __('Name, Year of Birth and SSN Match'),
+				'AgeMatch5_0_RuleSet_DOB' => __('Name and Date of Birth Match'),
+				'AgeMatch5_0_RuleSet_DOB_SSN' => __('Name, Date of Birth and SSN Match'),
+				'AgeMatch5_0_RuleSet_ADDR' => __('Name and Address Match'),
+				'AgeMatch5_0_RuleSet_ADDR_YOB' => __('Name, Address and Year of Birth Match'),
+				'AgeMatch5_0_RuleSet_ADDR_YOB_SSN' => __('Name, Address, Year of Birth and SSN Match'),
+				'AgeMatch5_0_RuleSet_ADDR_DOB_SSN_PHONE' => __('Name, Address, Date of Birth, SSN and Phone Match'),
+				'AgeMatch5_0_RuleSet_ADDR_YOB_SSN_PHONE' => __('Name, Address, Year of Birth, SSN and Phone Match'),
+				'AgeMatch5_0_RuleSet_ADDR_DOB_PHONE' => __('Name, Address, Date of Birth and Phone Match'),
+				'AgeMatch5_0_RuleSet_ADDR_YOB_PHONE' => __('Name, Address, Year of Birth and Phone Match'),
+				'AgeMatch5_0_RuleSet_ADDR_SSN_PHONE' => __('Name, Address, SSN and Phone Match'),
+				'AgeMatch5_0_RuleSet_ADDR_PHONE' => __('Name, Address and Phone Match'),
+				'AgeMatch5_0_RuleSet_YOB_SSN_PHONE' => __('Name, Year of Birth, SSN and Phone Match'),
+				'AgeMatch5_0_RuleSet_DOB_SSN_PHONE' => __('Name, Date of Birth, SSN and Phone Match'),
+				'AgeMatch5_0_RuleSet_YOB_PHONE' => __('Name, Year of Birth and Phone Match'),
+				'AgeMatch5_0_RuleSet_DOB_PHONE' => __('Name, Date of Birth and Phone Match'),
+				'AgeMatch5_0_RuleSet_SSN_PHONE' => __('Name, SSN and Phone Match'),
+				'AgeMatch5_0_RuleSet_PHONE' => __('Name and Phone Match'),
+				'' => __('Select a state specific match rule'),
+	)
+);
+	$agematch_rules['name'] = $state;
+	$agematch_rules['id'] = "agematch_state_rules_for_" . $state_code;
+	array_push($settings, $agematch_rules);
+}
+
+$end = array(
+	'type' => 'sectionend',
+	'id'   => 'veratad_rules_end'
+);
+array_push($settings, $end);
+
+
 			}
 
+
+//echo "<pre>";
+//print_r($settings);
 			/**
 			 * Filter veratad Settings
 			 *
@@ -885,9 +960,9 @@ function av_add_meta_boxes()
 			$sections  = array(
 				'general' => 'General',
 				'agematch' => 'AgeMatch',
+				'agematch_rules' => 'AgeMatch Rules',
 				'dcams' => 'DCAMS',
-				'popup' => 'Popup',
-				'faq' => 'FAQ',
+				'dcams_rules' => 'DCAMS Rules',
 			);
 
 			echo '<ul class="subsubsub">';
@@ -900,23 +975,7 @@ function av_add_meta_boxes()
 			echo '</ul><br class="clear" />';
 		}
 
-		public function output_settings_fields() {
-			global $current_section;
-			switch ( $current_section ) {
-				case 'debug':
-					$this->output_settings_debug();
-					break;
-				case 'reporting':
-					$this->output_settings_reporting();
-					break;
-				case 'stats':
-					$this->output_settings_stats();
-					break;
-				default:
-					$this->output_settings_main();
-					break;
-			}
-		}
+
 
 
 		public function output() {
