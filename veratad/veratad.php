@@ -4,7 +4,7 @@
 * Plugin Name: Veratad for WooCommerce
 * Plugin URI: https://www.veratad.com
 * Description: Age and Identity Verification
-* Version: 2.0.0
+* Version: 2.0.1
 * Author: The Veratad App Team
 * Author URI: https://www.veratad.com
 * License: GPL2
@@ -33,13 +33,13 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 
 
       $options = new WC_Veratad_Options();
-      $checkout = new WC_Veratad_Checkout_Fields( $options );
+      $helpers = new WC_Veratad_Helpers( $options );
+      $customer = new WC_Veratad_Customer( $helpers );
+      $checkout = new WC_Veratad_Checkout_Fields( $options, $customer );
       $api = new WC_Veratad_Api( $options, $checkout );
       $products = new WC_Veratad_Products( $options );
       $admin = new WC_Veratad_Admin($api);
-      $helpers = new WC_Veratad_Helpers( $options );
-      $customer = new WC_Veratad_Customer( $helpers );
-      $order = new WC_Veratad_Order( $helpers, $options );
+      $order = new WC_Veratad_Order( $helpers, $options, $checkout );
 
       //add age verification action to order edit view
       add_action( 'add_meta_boxes', array($admin,'av_add_meta_boxes') );
@@ -111,7 +111,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
             /* Modal Content/Box */
             .veratad-modal-content-woo {
               background-color: #fefefe;
-              margin: 15% auto; /* 15% from the top and centered */
+              margin: 5% auto; /* 15% from the top and centered */
               padding: 20px;
               border: 1px solid #888;
               width: 50%; /* Could be more or less, depending on screen size */
@@ -148,6 +148,15 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
         if(is_user_logged_in()){
           add_action( 'woocommerce_thankyou', array($customer, 'update_av_status') );
           if(!$customer->av_success()){
+            //validate DOB field on checkout when order acceptance is active
+            if($options->get_veratad_dob_collect()){
+                add_action('woocommerce_checkout_process', array($checkout, 'validate_dob'));
+            }
+
+            //validate SSN field on checkout when order acceptance is active
+            if($options->get_veratad_ssn_collect()){
+                add_action('woocommerce_checkout_process', array($checkout, 'validate_ssn'));
+            }
             add_action( 'woocommerce_new_order', array($order, 'verify') );
           }else{
             add_action( 'woocommerce_new_order', array($order, 'check_customer_match') );
@@ -165,6 +174,15 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
               if($options->get_veratad_shipping_verification()){
               $block = $api->block_order_if_different_name();
             }
+            //validate DOB field on checkout when order acceptance is active
+            if($options->get_veratad_dob_collect()){
+                add_action('woocommerce_checkout_process', array($checkout, 'validate_dob'));
+            }
+
+            //validate SSN field on checkout when order acceptance is active
+            if($options->get_veratad_ssn_collect()){
+                add_action('woocommerce_checkout_process', array($checkout, 'validate_ssn'));
+            }
               add_action( 'woocommerce_new_order', array($order, 'verify') );
             }
         }
@@ -179,6 +197,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
               add_action( 'woocommerce_new_order', array($order, 'verify') );
           }
         }
+
 
 
         //placement of AV on checkout page

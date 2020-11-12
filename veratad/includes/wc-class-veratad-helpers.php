@@ -41,8 +41,8 @@ if ( ! defined( 'ABSPATH' ) ) {
               'zip' => $_POST[''.$type.'_postcode'],
               'dob' => $_POST['veratad_billing_dob'],
               'ssn' => $_POST['veratad_billing_ssn'],
-              'phone' => $_POST[''.$type.'_phone'],
-              'email' => $_POST[''.$type.'_email'],
+              'phone' => $_POST['billing_phone'],
+              'email' => $_POST['billing_email'],
               'age' => $this->options->get_veratad_default_age_to_check()
           );
 

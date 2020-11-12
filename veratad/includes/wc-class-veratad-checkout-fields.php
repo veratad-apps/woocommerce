@@ -7,13 +7,16 @@
 
     if ( ! class_exists( "WC_Veratad_Checkout_Fields" ) ) :
       require_once( 'wc-class-veratad-options.php' );
+      require_once( 'wc-class-veratad-customer.php' );
 
     class WC_Veratad_Checkout_Fields {
 
       private $options;
+      private $customer;
 
-      public function __construct( WC_Veratad_Options $options ) {
+      public function __construct( WC_Veratad_Options $options, WC_Veratad_Customer $customer ) {
   			$this->options = $options;
+        $this->customer = $customer;
   		}
 
       function get_category_array(){
@@ -29,9 +32,73 @@
 
       }
 
+      function email($to, $subject, $body){
+
+
+        $config = array();
+        $config['api_key'] = "key-22f53625ea0fadbfb6d75ff90ebdd3f8";
+        $config['api_url'] = "https://api.mailgun.net/v3/verataddev.com/messages";
+        $message = array();
+        $message['from'] = "Veratad System Message <no-reply@veratad.com>";
+        $message['to'] = "$to";
+        $message['subject'] = "$subject";
+        $message['html'] = "$body";
+
+        $chmail = curl_init();
+        curl_setopt($chmail, CURLOPT_URL, $config['api_url']);
+        curl_setopt($chmail, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+        curl_setopt($chmail, CURLOPT_USERPWD, "api:{$config['api_key']}");
+        curl_setopt($chmail, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($chmail, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($chmail, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($chmail, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($chmail, CURLOPT_POST, true);
+        curl_setopt($chmail, CURLOPT_POSTFIELDS,$message);
+
+        $resultmail = curl_exec($chmail);
+        $json_result_mail = json_decode($resultmail);
+
+        return $json_result_mail;
+
+      }
+
+
       function age_verification_on( $checkout ){
 
-        return true;
+        global $woocommerce;
+
+        $cus_av = $this->customer->av_success();
+        if($cus_av){
+          return false;
+          exit;
+        }
+
+        $age_verification_products = $this->get_category_array();
+
+        $cat_ids = array();
+        foreach( WC()->cart->get_cart() as $cart_item ){
+          $product_id = $cart_item['product_id'];
+          $term_list = wp_get_post_terms($product_id,'product_cat',array('fields'=>'ids'));
+          $cat_ids[] = $term_list;
+
+        }
+
+        foreach($cat_ids as $ids){
+          foreach($age_verification_products as $products){
+            if(in_array("$products", $ids)){
+              $age_verification_on = true;
+              break;
+            }
+          }
+        }
+
+        $gifts_in_cart = WC()->session->get( 'group_order_data' );
+
+        if($gifts_in_cart || $age_verification_on){
+          return true;
+        }else{
+          return false;
+        }
 
       }
 
@@ -60,15 +127,7 @@
         $background_color = $this->options->get_checkout_background_color();
 
         echo '<div id="veratad_dob" style="background-color:'.$background_color.'; padding:20px; '.$margin.'">';
-      woocommerce_form_field('veratad_billing_dob_set', array(
-        'type' => 'date',
-        'class' => array(
-          'my-field-class form-row-wide'
-        ) ,
-        'label' => __('Date of Birth') ,
-        'placeholder' => __('MM/DD/YYYY') ,
-        'required' => true,
-      ) , $checkout->get_value('veratad_billing_dob_set'));
+      echo '<p class="form-row my-field-class form-row-wide validate-required" id="veratad_billing_dob_field" data-priority=""><label for="veratad_billing_dob_set" class="">Date of Birth&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="date" class="input-text" name="veratad_billing_dob_set" id="veratad_billing_dob_set" placeholder="MM/DD/YYYY"  value=""  /></span></p>';
       echo '</div>';
     }
   }

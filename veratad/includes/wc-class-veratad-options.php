@@ -152,7 +152,7 @@ if ( ! defined( 'ABSPATH' ) ) {
       		}
 
           public function get_second_attempt_av_failure() {
-            return get_option( self::$second_attempt_av_failure, 'We are still unable to verify your age. We are reviewing you document and will get back to you shortly.');
+            return get_option( self::$second_attempt_av_failure, 'We are still unable to verify your age. We are reviewing your document and will get back to you shortly.');
           }
 
           public function get_av_failure_text_acceptance() {

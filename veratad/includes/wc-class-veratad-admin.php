@@ -189,16 +189,20 @@ function av_add_meta_boxes()
                 return $post_id;
             }
         }
-        // --- Its safe for us to save the data ! --- //
 
-        // Sanitize user input  and update the meta field in the database.
 				$av_status = $_POST[ 'av_status' ];
 				$order = wc_get_order( $post_id );
+				$order_status = $order->get_status();
+
+			if(!empty($av_status)){
 				if($av_status == "PASS"){
-					$order->update_status( 'processing' );
-				}else{
-					$order->update_status( 'not-verified' );
-				}
+						$order->update_status( 'processing' );
+					}else{
+						$order->update_status( 'not-verified' );
+					}
+			}
+
+
 
 				$username = $_POST[ 'username' ];
 				$timestamp = current_time( "Y-m-d h:i:s");
@@ -524,7 +528,7 @@ public function add_awaiting_verification_to_order_statuses_bulk( $bulk_actions 
 						'default' => 'Something went wrong. We were not able to verify your age. Please check your details and try again.'
 					),
 
-				
+
 
 					array(
 						'type'     => 'textarea',
@@ -578,6 +582,26 @@ public function add_awaiting_verification_to_order_statuses_bulk( $bulk_actions 
 
 			} elseif ('general' == $current_section ||  !$current_section) {
 
+				$orderby = 'name';
+				$order = 'asc';
+				$hide_empty = false;
+				$cat_args = array(
+						'orderby'    => $orderby,
+						'order'      => $order,
+						'hide_empty' => $hide_empty,
+				);
+
+				$product_categories = get_terms( 'product_cat', $cat_args );
+				if( !empty($product_categories) ){
+					$cat = array();
+						foreach ($product_categories as $key => $category) {
+							$name = $category->name;
+							$id = $category->term_id;
+							$cat[$id] =  __($name);
+						}
+				}
+
+
 
 				$settings = apply_filters( 'veratad_general_settings', array(
 
@@ -595,17 +619,6 @@ public function add_awaiting_verification_to_order_statuses_bulk( $bulk_actions 
 						'default' => 'no'
 					),
 
-					array(
-
-                'type'        => 'taxonomy',
-                'id'          => 'prefix-taxonomy_02n5yb7lw898',
-                'name'        => esc_html__( 'Taxonomy', 'online-generator' ),
-                'taxonomy'    => 'post_tag',
-                'field_type'  => 'checkbox_list',
-                'std'         => ['Test'],
-                'placeholder' => esc_html__( 'Test', 'online-generator' ),
-
-					),
 					array(
 						'type' => 'sectionend',
 						'id'   => 'veratad_active_end'
@@ -645,7 +658,15 @@ public function add_awaiting_verification_to_order_statuses_bulk( $bulk_actions 
 						'id'   => 'veratad_settings'
 					),
 
-
+					array(
+						'type'     => 'multiselect',
+						'id'       => 'veratad_categories',
+						'name'     => __( 'Categories That Require Age Verification', 'my-textdomain' ),
+						'css'     => 'min-height:150px;',
+						'default' => 'no_filter',
+						'options' => $cat,
+						'desc_tip'     => __( 'If a category is selected then age verification will be active for any products in that category. If not, no age verification will be required.', 'my-textdomain' )
+					),
 
 					array(
 						'type'     => 'checkbox',

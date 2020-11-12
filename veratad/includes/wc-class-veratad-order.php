@@ -11,36 +11,62 @@ if ( ! defined( 'ABSPATH' ) ) {
 
         private $helpers;
         private $options;
+        private $checkout;
 
-        public function __construct( WC_Veratad_Helpers $helpers, WC_Veratad_Options $options ) {
+        public function __construct( WC_Veratad_Helpers $helpers, WC_Veratad_Options $options, WC_Veratad_Checkout_Fields $checkout ) {
     			$this->helpers = $helpers;
           $this->options = $options;
+          $this->checkout = $checkout;
     		}
+
+
 
         public function verify( $order_id ){
 
+          $on = $this->checkout->age_verification_on( $checkout );
+
+          if($on){
+
           $order = wc_get_order( $order_id );
-          $billing_country = $order->get_billing_country();
+          $country = ($this->options->get_billing_or_shipping() == "billing" ? $order->get_billing_country() : $order->get_shipping_country());
           $international_exclude = $this->options->get_veratad_international_exclude();
-          if(($billing_country == "US" && $international_exclude) || !$international_exclude){
+          if(($country == "US" && $international_exclude) || !$international_exclude){
           $dob = $_POST['veratad_billing_dob'];
           $this->helpers->store_dob_order($order_id, $dob);
           $is_verified = $this->helpers->is_verified_veratad();
           if($is_verified){
             $this->veratad_order_data_save_pass();
+
+          //if customer update details on PASS
+          if(is_user_logged_in()){
+            $address_type = $this->options->get_billing_or_shipping();
+            if($address_type == "billing"){
+              $fn = $order->get_billing_first_name();
+              $ln = $order->get_billing_last_name();
+            }else{
+              $fn = $order->get_shipping_first_name();
+              $ln = $order->get_shipping_last_name();
+            }
+            $customer_id = get_current_user_id();
+            update_user_meta( $customer_id, 'first_name', $fn);
+            update_user_meta( $customer_id, 'last_name', $ln);
+          }
+
           }else{
             $this->veratad_order_data_save_fail();
           }
         }
+      }
 
       }
 
         public function verify_and_block(){
 
-          $billing_country = $_POST['billing_country'];
+          $country = ($this->options->get_billing_or_shipping() == "billing" ? $_POST['billing_country'] : $_POST['shipping_country']);
+
           $international_exclude = $this->options->get_veratad_international_exclude();
 
-          if(($billing_country == "US" && $international_exclude) || !$international_exclude){
+          if(($country == "US" && $international_exclude) || !$international_exclude){
 
           $is_verified = $this->helpers->is_verified_veratad();
 

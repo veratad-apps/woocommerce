@@ -31,8 +31,8 @@
           'zip' => $_POST[''.$type.'_postcode'],
           'dob' => $_POST['veratad_billing_dob'],
           'ssn' => $_POST['veratad_billing_ssn'],
-          'phone' => $_POST[''.$type.'_phone'],
-          'email' => $_POST[''.$type.'_email'],
+          'phone' => $_POST['billing_phone'],
+          'email' => $_POST['billing_email'],
           'age' => $this->options->get_veratad_default_age_to_check()
       );
 
@@ -221,11 +221,12 @@
 
       $customer_id = get_current_user_id();
       $order = wc_get_order( $order_id );
-      $billing_country = $order->get_billing_country();
+
+      $country = ($this->options->get_billing_or_shipping() == "billing" ? $order->get_billing_country() : $order->get_shipping_country());
 
       $international_exclude = $this->options->get_veratad_international_exclude();
 
-      if(($billing_country == "US" && $international_exclude) || !$international_exclude){
+      if(($country == "US" && $international_exclude) || !$international_exclude){
       if(is_user_logged_in()){
         $customer_verified = $this->get_customer_av_status();
         if($customer_verified){
@@ -520,7 +521,7 @@
             <form id="veratad-try-again-form">
             <div class="woocommerce-billing-fields__field-wrapper">
             <p class="form-row form-row-first validate-required" id="fn-field" data-priority="10"><label for="fn" class="">First name&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="text" class="input-text " name="fn" id="billing_first_name" placeholder=""  value="'.$billing_fn.'" autocomplete="given-name" required/></span></p>
-            <p class="form-row form-row-last validate-required" id="ln-field" data-priority="20"><label for="ln class="">Last name&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="text" class="input-text " name="ln" id="ln" placeholder=""  value="'.$billing_ln.'" autocomplete="family-name" /></span></p>
+            <p class="form-row form-row-last validate-required" id="ln-field" data-priority="20"><label for="ln" class="">Last name&nbsp;<abbr class="required" title="required">*</abbr></label><span class="woocommerce-input-wrapper"><input type="text" class="input-text " name="ln" id="ln" placeholder=""  value="'.$billing_ln.'" autocomplete="family-name" /></span></p>
             <input type="hidden" class="input-text " name="addr" id="addr" placeholder="House number and street name"  value="'.$billing_addr.'" autocomplete="address-line1" />
             <input type="hidden" class="input-text " name="addr2" id="addr2" placeholder="Apartment, suite, unit etc. (optional)"  value="'.$billing_addr_two.'" autocomplete="address-line2" />
             <input type="hidden" class="input-text " name="billing_city" id="billing_city" placeholder=""  value="'.$billing_city.'" autocomplete="address-level2" />
@@ -698,7 +699,6 @@
                veratadModal.close();
              },
              onError: function() {
-
                jQuery("#initial-error").show();
                jQuery("#fail").hide();
                jQuery("#upload").hide();
@@ -717,35 +717,7 @@
 <?php
 }
 
-function email($to, $subject, $body){
 
-
-  $config = array();
-  $config['api_key'] = "key-22f53625ea0fadbfb6d75ff90ebdd3f8";
-  $config['api_url'] = "https://api.mailgun.net/v3/verataddev.com/messages";
-  $message = array();
-  $message['from'] = "Veratad System Message <no-reply@veratad.com>";
-  $message['to'] = "$to";
-  $message['subject'] = "$subject";
-  $message['html'] = "$body";
-
-  $chmail = curl_init();
-  curl_setopt($chmail, CURLOPT_URL, $config['api_url']);
-  curl_setopt($chmail, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-  curl_setopt($chmail, CURLOPT_USERPWD, "api:{$config['api_key']}");
-  curl_setopt($chmail, CURLOPT_RETURNTRANSFER, 1);
-  curl_setopt($chmail, CURLOPT_CONNECTTIMEOUT, 10);
-  curl_setopt($chmail, CURLOPT_SSL_VERIFYPEER, 0);
-  curl_setopt($chmail, CURLOPT_SSL_VERIFYHOST, 0);
-  curl_setopt($chmail, CURLOPT_POST, true);
-  curl_setopt($chmail, CURLOPT_POSTFIELDS,$message);
-
-  $resultmail = curl_exec($chmail);
-  $json_result_mail = json_decode($resultmail);
-
-  return $json_result_mail;
-
-}
 
 function veratad_ajax_agematch_second_attempt() {
 
@@ -783,15 +755,11 @@ function veratad_ajax_agematch_second_attempt() {
   );
 
 
-
-
   if($test_mode){
     $req_array['target']['test_key'] = $specs['test_key'];
   }
 
   $req =  json_encode(new \ArrayObject($req_array));
-
-
 
   $post = wp_remote_post("https://production.idresponse.com/process/comprehensive/gateway", array(
     'method'      => 'POST',
