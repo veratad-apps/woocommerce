@@ -4,7 +4,7 @@
 * Plugin Name: Veratad for WooCommerce
 * Plugin URI: https://www.veratad.com
 * Description: Age and Identity Verification
-* Version: 2.0.1
+* Version: 2.0.2
 * Author: The Veratad App Team
 * Author URI: https://www.veratad.com
 * License: GPL2

@@ -65,7 +65,10 @@
 
       function age_verification_on( $checkout ){
 
+      
         global $woocommerce;
+
+        if(WC()->cart){
 
         $cus_av = $this->customer->av_success();
         if($cus_av){
@@ -76,6 +79,7 @@
         $age_verification_products = $this->get_category_array();
 
         $cat_ids = array();
+
         foreach( WC()->cart->get_cart() as $cart_item ){
           $product_id = $cart_item['product_id'];
           $term_list = wp_get_post_terms($product_id,'product_cat',array('fields'=>'ids'));
@@ -99,6 +103,9 @@
         }else{
           return false;
         }
+      }else{
+        return false;
+      }
 
       }
 
