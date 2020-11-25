@@ -730,6 +730,8 @@ function veratad_ajax_agematch_second_attempt() {
 
   if (strpos($date_of_birth, '-') !== false) {
     $dob_type = "YYYY-MM-DD";
+  }elseif (strpos($date_of_birth, '/') !== false){
+    $dob_type = "MM/DD/YYYY";
   }else{
     $dob_type = "MMDDYYYY";
   }

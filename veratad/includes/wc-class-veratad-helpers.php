@@ -76,6 +76,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
           if (strpos($dob, '-') !== false) {
             $dob_type = "YYYY-MM-DD";
+          }elseif (strpos($dob, '/') !== false){
+            $dob_type = "MM/DD/YYYY";
           }else{
             $dob_type = "MMDDYYYY";
           }
